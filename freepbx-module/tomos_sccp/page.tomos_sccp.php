@@ -61,6 +61,17 @@ if ($error === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $args = ['device', 'remove', '--mac', strtoupper(str_replace([':', '-'], '', tomos_sccp_post('mac'))), '--confirm'];
         } elseif ($action === 'buttons') {
             $args = ['device', 'buttons', '--mac', tomos_sccp_post('mac'), '--extensions', tomos_sccp_post('button_extensions')];
+        } elseif ($action === 'button-add') {
+            $args = ['device', 'button-add', '--mac', tomos_sccp_post('mac'),
+                     '--type', tomos_sccp_post('button_type')];
+            foreach (['position' => '--position', 'label' => '--label',
+                      'line_extension' => '--line-extension', 'option1' => '--option1',
+                      'option2' => '--option2'] as $field => $flag) {
+                if (tomos_sccp_post($field) !== '') { $args[] = $flag; $args[] = tomos_sccp_post($field); }
+            }
+        } elseif ($action === 'button-remove') {
+            $args = ['device', 'button-remove', '--mac', tomos_sccp_post('mac'),
+                     '--position', tomos_sccp_post('position')];
         } elseif ($action === 'line-update') {
             $args = ['line', 'update', '--extension', tomos_sccp_post('line_extension')];
             foreach (['label' => '--label', 'description' => '--description', 'context' => '--context',
@@ -179,10 +190,47 @@ foreach (($statusData['devices'] ?? []) as $state) { $statusByMac[$state['mac']]
               <label>Line extensions in button order (comma-separated)
                 <input class="form-control" name="button_extensions" value="<?php echo tomos_sccp_h($phone['button_extensions'] ?? $phone['extension']); ?>">
               </label>
-              <button class="btn btn-primary" type="submit">Save buttons</button>
+              <button class="btn btn-primary" type="submit">Save line buttons</button>
             </form>
           </details>
+          <details><summary>Add speed-dial or feature button</summary>
+            <form method="post">
+              <input type="hidden" name="csrf" value="<?php echo tomos_sccp_h($csrf); ?>"><input type="hidden" name="action" value="button-add">
+              <input type="hidden" name="mac" value="<?php echo tomos_sccp_h($phone['mac']); ?>">
+              <label>Button type<select class="form-control" name="button_type">
+                <option value="speeddial">Speed dial</option><option value="feature">Feature</option>
+                <option value="empty">Empty button</option><option value="line">Line</option>
+              </select></label>
+              <label>Position (leave blank to append)<input class="form-control" type="number" min="1" max="32" name="position"></label>
+              <label>Display label<input class="form-control" name="label" maxlength="40"></label>
+              <label>Line extension (line buttons only)<input class="form-control" name="line_extension"></label>
+              <label>Destination number / feature type<input class="form-control" name="option1" placeholder="e.g. 2000 or DND"></label>
+              <label>BLF hint / feature parameter<input class="form-control" name="option2" placeholder="e.g. 2000@hints or busy"></label>
+              <button class="btn btn-primary" type="submit">Add button</button>
+            </form>
+          </details>
+          <ol>
           <?php foreach (($phone['buttons'] ?? []) as $button): ?>
+            <li>
+              <?php echo tomos_sccp_h($button['button_type']); ?> —
+              <?php echo tomos_sccp_h($button['button_label'] ?? $button['line_extension'] ?? ''); ?>
+              <?php if ($button['button_type'] === 'speeddial'): ?>
+                (<?php echo tomos_sccp_h($button['option1']); ?><?php echo !empty($button['option2']) ? ' · BLF ' . tomos_sccp_h($button['option2']) : ''; ?>)
+              <?php elseif ($button['button_type'] === 'feature'): ?>
+                (<?php echo tomos_sccp_h($button['option1']); ?><?php echo !empty($button['option2']) ? ', ' . tomos_sccp_h($button['option2']) : ''; ?>)
+              <?php endif; ?>
+              <form method="post" style="display:inline" onsubmit="return confirm('Remove this button?');">
+                <input type="hidden" name="csrf" value="<?php echo tomos_sccp_h($csrf); ?>">
+                <input type="hidden" name="action" value="button-remove">
+                <input type="hidden" name="mac" value="<?php echo tomos_sccp_h($phone['mac']); ?>">
+                <input type="hidden" name="position" value="<?php echo tomos_sccp_h($button['position']); ?>">
+                <button class="btn btn-danger btn-xs" type="submit">Remove</button>
+              </form>
+            </li>
+          <?php endforeach; ?>
+          </ol>
+          <?php foreach (($phone['buttons'] ?? []) as $button): ?>
+          <?php if ($button['button_type'] === 'line'): ?>
           <details><summary>Edit line <?php echo tomos_sccp_h($button['line_extension']); ?></summary>
             <form method="post">
               <input type="hidden" name="csrf" value="<?php echo tomos_sccp_h($csrf); ?>"><input type="hidden" name="action" value="line-update">
@@ -193,6 +241,7 @@ foreach (($statusData['devices'] ?? []) as $state) { $statusByMac[$state['mac']]
               <button class="btn btn-primary" type="submit">Save shared line</button>
             </form>
           </details>
+          <?php endif; ?>
           <?php endforeach; ?>
           <form method="post" onsubmit="return confirm('Remove this phone from the TomOS inventory?');">
             <input type="hidden" name="csrf" value="<?php echo tomos_sccp_h($csrf); ?>"><input type="hidden" name="action" value="delete">

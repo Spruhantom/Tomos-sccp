@@ -25,9 +25,9 @@ This repository currently provides the SCCP driver build/install integration and
 
 ## Milestone 3 — FreePBX integration
 - [x] Identify the FreePBX 17-tested SCCP Manager companion (nortien/sccp_manager 17.1.1)
-- [ ] Validate its GPL module and driver compatibility against TomOS build output
-- [ ] Decide whether TomOS ships a branded fork or installs the upstream companion unchanged
-- [ ] Integrate GUI installation/upgrade without overwriting existing FreePBX settings
+- [x] Add an installer for the upstream GPL module without copying or relicensing its code
+- [x] Add a full-stack wrapper that installs the driver before the GUI module
+- [x] Refuse to overwrite an existing non-Git module directory
 - [ ] Test module install, upgrade and uninstall on clean FreePBX 17 images
 
 ## Milestone 4 — operations and monitoring

@@ -42,6 +42,10 @@ with tempfile.TemporaryDirectory() as temporary:
             "--extension", str(1200 + index), "--description", "Wrong template",
             expected=2)
 
+    # Updates must enforce the same model/template invariant as creation.
+    run(MANAGER, "--database", database, "device", "update",
+        "--mac", "001122334401", "--template-family", "797x", expected=2)
+
     inventory = json.loads(run(MANAGER, "--database", database,
                                "device", "list", "--json").stdout)
     assert {item["model_number"]: item["template_family"] for item in inventory} == TARGETS

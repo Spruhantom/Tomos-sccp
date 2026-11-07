@@ -23,6 +23,7 @@ TomOS SCCP is an integration layer around the original [chan-sccp/chan-sccp](htt
 - [ ] Validate supported phone models and firmware against target handsets
 - [x] Generate a minimal XMLDefault.cnf.xml with primary/optional backup PBX targets
 - [x] Render model-specific SEP<MAC>.cnf.xml files from upstream templates (handset/firmware validation remains open)
+- [x] Add dnsmasq and ISC DHCP Cisco Option 150 configuration examples and static checks
 - [ ] Verify DHCP option 150, TFTP and end-to-end phone provisioning
 - [ ] Test registration and inbound/outbound calls with physical Cisco phones
 

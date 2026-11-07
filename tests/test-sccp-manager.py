@@ -4,6 +4,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/tomos-sccp-manager.py"
@@ -84,6 +85,34 @@ with tempfile.TemporaryDirectory() as temporary:
     assert "description = Main reception" in hardware
     assert "devicetype = 7960" in hardware
     run(database, "render", "--output-dir", output, expected=2)
+
+
+    # Inventory-driven SEP export uses the selected family and stays in staging.
+    sep_templates = root / "sep-templates"
+    sep_templates.mkdir()
+    (sep_templates / "SEP0000000000.cnf.xml_7940_7960_template").write_text(
+        '<?xml version="1.0"?><device><devicePool><callManagerGroup><members>'
+        '<member><callManager><ports><ethernetPhonePort>2000</ethernetPhonePort>'
+        '</ports><processNodeName>x.x.x.x</processNodeName></callManager></member>'
+        '</members></callManagerGroup></devicePool></device>', encoding="utf-8")
+    sep_output = root / "tftp-review"
+    sep_result = run(database, "sep-export", "--pbx-address", "192.168.10.5",
+                     "--template-dir", sep_templates, "--output-dir", sep_output)
+    assert "XML-validated 1 Cisco SEP file(s)" in sep_result.stdout
+    sep_file = sep_output / "SEP001122334455.cnf.xml"
+    assert ET.parse(sep_file).findtext(".//processNodeName") == "192.168.10.5"
+    original_sep = sep_file.read_text(encoding="utf-8")
+    run(database, "sep-export", "--pbx-address", "192.168.10.5",
+        "--template-dir", sep_templates, "--output-dir", sep_output, expected=2)
+    assert sep_file.read_text(encoding="utf-8") == original_sep
+    run(database, "sep-export", "--pbx-address", "192.168.10.5",
+        "--template-dir", sep_templates, "--output-dir", sep_output, "--force")
+    assert pathlib.Path(str(sep_file) + ".tomos-backup").read_text(encoding="utf-8") == original_sep
+    failed_output = root / "sep-failed"
+    run(database, "sep-export", "--pbx-address", "192.168.10.5",
+        "--template-dir", root / "missing-templates", "--output-dir", failed_output,
+        expected=2)
+    assert not failed_output.exists()
 
     run(database, "device", "remove", "--mac", "001122334455", expected=2)
     run(database, "device", "remove", "--mac", "001122334455", "--confirm")

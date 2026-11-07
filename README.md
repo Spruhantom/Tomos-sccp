@@ -76,6 +76,39 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-provision.py render --input device
 
 The renderer validates Cisco MAC addresses, model-number syntax, extension numbers, Asterisk context names and config-safe text. It supports multiple phones sharing one line when their line settings match. It writes separate `sccp_hardware.conf` and `sccp_extensions.conf` include fragments into a staging directory; it does **not** edit live Asterisk configuration, create extensions in FreePBX, deploy per-phone XML, set DHCP/TFTP, or reload Asterisk. Review the generated files and confirm the dialplan context and FreePBX extension exist before manually integrating them. Existing output files are never overwritten unless `--force` is supplied; then a `.tomos-backup` copy is preserved.
 
+
+## TomOS provisioning manager
+
+TomOS now includes a native SQLite-backed provisioning manager, inspired by Endpoint Manager's separation of vendor, model/template and device inventory. It is a standalone TomOS CLI tool, not a FreePBX PHP module, and it does not copy Endpointman's code.
+
+Initial support is limited to Cisco SCCP phones and the model-template families supplied by upstream chan-sccp. The catalogue is local; it does not rely on Endpointman's legacy remote provider catalogue.
+
+```bash
+# Create the inventory database and inspect supported catalogues
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py init
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py vendor list
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py model list
+
+# Register a Cisco phone
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device add \
+  --mac 001122AABBCC \
+  --vendor cisco \
+  --model 7960 \
+  --template-family 7940_7960 \
+  --extension 1000 \
+  --description "Front desk"
+
+# List and inspect the inventory
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device list
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device show --mac 001122AABBCC
+
+# Render Asterisk SCCP include fragments into a staging directory
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py render \
+  --output-dir /var/tmp/tomos-sccp-generated
+```
+
+The inventory database defaults to `/var/lib/tomos-sccp/provisioning.db`; override it with `--database` or `TOMOS_SCCP_DB`. The database is created with owner-only file permissions. Device removal requires `--confirm`. Rendering delegates to the existing tested SCCP renderer and never edits live Asterisk or TFTP configuration. The current renderer requires all devices in one render to share the same dialplan context. Phone model numbers and template-family selections must be checked against the physical handset and firmware; the template family is not an automatic firmware compatibility guarantee.
+
 ## Cisco phone TFTP call-manager configuration
 
 Generate the Cisco XMLDefault.cnf.xml call-manager target file using the PBX address that phones can actually reach:

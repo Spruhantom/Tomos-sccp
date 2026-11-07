@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory() as directory:
     templates = root / "templates"
     templates.mkdir()
     template = templates / "SEP0000000000.cnf.xml_69xx_template"
-    template.write_text("""<?xml version="1.0"?><device><devicePool><callManagerGroup><members><member priority="0"><callManager><ports><ethernetPhonePort>2000</ethernetPhonePort></ports><processNodeName>x.x.x.x</processNodeName></callManager></member></members></callManagerGroup><dateTimeSetting><ntps><ntp><name>213.109.127.195</name></ntp></ntps></dateTimeSetting><srstInfo><ipAddr1>x.x.x.x</ipAddr1><port1>2000</port1></srstInfo></devicePool></device>""", encoding="utf-8")
+    template.write_text("""<?xml version="1.0"?><device><sshUserId>cisco</sshUserId><sshPassword>cisco</sshPassword><devicePool><callManagerGroup><members><member priority="0"><callManager><ports><ethernetPhonePort>2000</ethernetPhonePort></ports><processNodeName>x.x.x.x</processNodeName></callManager></member></members></callManagerGroup><dateTimeSetting><ntps><ntp><name>213.109.127.195</name></ntp></ntps></dateTimeSetting><srstInfo><ipAddr1>x.x.x.x</ipAddr1><port1>2000</port1></srstInfo></devicePool></device>""", encoding="utf-8")
     output = root / "SEP001122AABBCC.cnf.xml"
 
     def run(*args, expected=0):
@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory() as directory:
             "--template-dir", templates, "--output", output]
     run(*base)
     tree = ET.parse(output)
-    assert tree.findtext(".//processNodeName") == "192.168.1.10"
+    assert tree.findtext(".//processNodeName") == "192.168.1.10"\n    assert tree.findtext("./sshUserId") == "tom-phone"\n    assert tree.findtext("./sshPassword") == "change-me"
     assert tree.findtext(".//ethernetPhonePort") == "2000"
     assert tree.findtext(".//ipAddr1") == "192.168.1.10"
     assert tree.find(".//ntp") is None

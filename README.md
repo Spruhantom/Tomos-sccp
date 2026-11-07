@@ -98,8 +98,7 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device add \
   --extension 1000 \
   --description "Front desk"
 
-# List and inspect the inventory
-sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device list
+# Update a phone\nsudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device update --mac 001122AABBCC --description "Main reception"\n\n# List and inspect the inventory\nsudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device list
 sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device show --mac 001122AABBCC
 
 # Render Asterisk SCCP include fragments into a staging directory

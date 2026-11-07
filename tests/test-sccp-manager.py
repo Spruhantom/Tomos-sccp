@@ -58,7 +58,7 @@ with tempfile.TemporaryDirectory() as temporary:
     run(database, "device", "remove", "--mac", "001122334455", expected=2)
     run(database, "device", "remove", "--mac", "001122334455", "--confirm")
     assert "No phones registered yet" in run(database, "device", "list").stdout
-    assert "not changed" in run(database, "device", "remove", "--mac", "001122334455",
-                                "--confirm", expected=2).stderr
+    assert "phone not found" in run(database, "device", "remove", "--mac", "001122334455",
+                                    "--confirm", expected=2).stderr
 
 print("TomOS SCCP manager tests passed.")

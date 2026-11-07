@@ -34,8 +34,10 @@ TomOS SCCP is an integration layer around the original [chan-sccp/chan-sccp](htt
 
 ## Milestone 4 — TomOS management and monitoring
 - [ ] TomOS-branded FreePBX administration workflow
-- [ ] Device discovery and MAC-address validation
-- [ ] Extension/line provisioning with secret-safe configuration
+- [x] JSON-based device inventory and MAC-address validation (staging renderer)
+- [ ] Network device discovery
+- [x] Generate SCCP device/line include fragments without touching live configuration
+- [ ] FreePBX extension creation and line provisioning with secret-safe configuration
 - [ ] Registration/session status dashboard
 - [ ] BLF and presence monitoring
 - [ ] Firmware inventory and model compatibility reporting

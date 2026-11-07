@@ -168,6 +168,19 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-sep.py \\
 
 Use `--output /srv/tftp --deploy` to write the correctly named `SEP<MAC>.cnf.xml` into an existing TFTP root. The renderer substitutes the PBX address placeholders, removes the upstream sample NTP server unless `--ntp-server` is supplied, and preserves existing files unless `--force` is supplied. The renderer removes the upstream `cisco`/`cisco` SSH credentials by default. If phone SSH access is required, provide `--ssh-user` and `--ssh-password-file` pointing to a file protected with mode `0600`; the password is not placed in shell history or process arguments. Model templates are upstream examples, not a guarantee that every firmware/model combination will register; validate on the target handset before rollout.
 
+
+### Export per-phone SEP XML from the manager inventory
+
+Generate one Cisco `SEP<MAC>.cnf.xml` file per registered phone, using the template family selected for that device:
+
+```bash
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py sep-export \
+  --pbx-address 192.168.10.5 \
+  --output-dir /var/tmp/tomos-sccp-tftp-review
+```
+
+This is a reviewed staging export, not a live deployment. The manager first renders and parses every phone's XML in a temporary directory; it writes nothing to the destination if a template is missing or any phone fails validation. Existing files are refused unless `--force` is supplied, which preserves `.tomos-backup` copies and rolls back a partial export if a write fails. Optional `--template-dir`, `--port` and `--ntp-server` settings are available. Review the XML and confirm handset model and firmware compatibility before manually copying files to the configured TFTP root. DHCP, live TFTP files, Asterisk and phones are not changed.
+
 ## Diagnostics
 
 ```bash

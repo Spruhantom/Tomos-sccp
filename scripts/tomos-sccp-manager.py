@@ -365,7 +365,8 @@ def list_devices(db, as_json=False):
         records = [dict(row) for row in rows]
         for record in records:
             record["buttons"] = get_device_buttons(db, record["mac"])
-            record["button_extensions"] = ",".join(item["line_extension"] for item in record["buttons"])
+            record["button_extensions"] = ",".join(item["line_extension"] for item in record["buttons"] if item["button_type"] == "line")
+            record["button_display"] = [str(item["position"]) + ": " + item["button_type"] + " " + (item["button_label"] or item["line_extension"] or "") for item in record["buttons"]]
         print(json.dumps(records, ensure_ascii=True))
         return
     if not rows:
@@ -385,7 +386,8 @@ def show_device(db, mac, as_json=False):
     if as_json:
         record = dict(row)
         record["buttons"] = get_device_buttons(db, mac)
-        record["button_extensions"] = ",".join(item["line_extension"] for item in record["buttons"])
+        record["button_extensions"] = ",".join(item["line_extension"] for item in record["buttons"] if item["button_type"] == "line")
+        record["button_display"] = [str(item["position"]) + ": " + item["button_type"] + " " + (item["button_label"] or item["line_extension"] or "") for item in record["buttons"]]
         print(json.dumps(record, ensure_ascii=True))
         return
     for key in ("mac", "vendor_slug", "model_number", "template_family", "description",

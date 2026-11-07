@@ -4,8 +4,8 @@ set -Eeuo pipefail
 
 PROJECT="TomOS SCCP"
 REPO_RAW="https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main"
-UPSTREAM_URL="https://github.com/chan-sccp/chan-sccp.git"
-UPSTREAM_REF="${TOMOS_SCCP_REF:-develop}"
+UPSTREAM_URL="https://github.com/nortien/chan-sccp.git"
+UPSTREAM_REF="${TOMOS_SCCP_REF:-stable}"
 WORKDIR="/usr/src/tomos-sccp"
 ASTERISK_ETC="/etc/asterisk"
 MODULES_CONF="${ASTERISK_ETC}/modules.conf"

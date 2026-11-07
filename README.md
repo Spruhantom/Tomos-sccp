@@ -99,7 +99,7 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-sep.py \\
   --output /var/tmp/SEP001122AABBCC.cnf.xml
 ```
 
-Use `--output /srv/tftp --deploy` to write the correctly named `SEP<MAC>.cnf.xml` into an existing TFTP root. The renderer substitutes the PBX address placeholders, removes the upstream sample NTP server unless `--ntp-server` is supplied, and preserves existing files unless `--force` is supplied. Upstream templates contain default `cisco`/`cisco` phone SSH credentials, so the renderer refuses to emit them unchanged; supply your own `--ssh-user` and `--ssh-password` values. Model templates are upstream examples, not a guarantee that every firmware/model combination will register; validate on the target handset before rollout.
+Use `--output /srv/tftp --deploy` to write the correctly named `SEP<MAC>.cnf.xml` into an existing TFTP root. The renderer substitutes the PBX address placeholders, removes the upstream sample NTP server unless `--ntp-server` is supplied, and preserves existing files unless `--force` is supplied. The renderer removes the upstream `cisco`/`cisco` SSH credentials by default. If phone SSH access is required, provide `--ssh-user` and `--ssh-password-file` pointing to a file protected with mode `0600`; the password is not placed in shell history or process arguments. Model templates are upstream examples, not a guarantee that every firmware/model combination will register; validate on the target handset before rollout.
 
 ## Diagnostics
 

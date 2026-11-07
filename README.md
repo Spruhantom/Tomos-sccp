@@ -123,6 +123,26 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py render \
 
 The inventory database defaults to `/var/lib/tomos-sccp/provisioning.db`; override it with `--database` or `TOMOS_SCCP_DB`. The database is created with owner-only file permissions. Device removal requires `--confirm`. Rendering delegates to the existing tested SCCP renderer and never edits live Asterisk or TFTP configuration. The current renderer requires all devices in one render to share the same dialplan context. Phone model numbers and template-family selections must be checked against the physical handset and firmware; the template family is not an automatic firmware compatibility guarantee.
 
+### Export static DHCP reservations from the phone inventory
+
+When adding or updating a phone, optionally assign a reserved IPv4 address. This is inventory metadata only; it does not request or change a lease on the live DHCP server:
+
+```bash
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device add \
+  --mac 001122AABBCC --model 7960 --template-family 7940_7960 \
+  --extension 1000 --description "Front desk" --dhcp-address 192.168.10.50
+
+# Export reservations for review and manual inclusion in dnsmasq:
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py dhcp-export \
+  --format dnsmasq --output /var/tmp/tomos-phones.conf
+
+# Or export ISC dhcpd host declarations:
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py dhcp-export \
+  --format isc-dhcpd --output /var/tmp/tomos-phones-isc.conf
+```
+
+Only devices with `--dhcp-address` are exported. Addresses must be unique IPv4 addresses. The exporter refuses to overwrite an existing file unless `--force` is supplied; force mode preserves a `.tomos-backup` copy and refuses to overwrite an existing backup. Generated files are owner-readable only. ISC declarations must be placed inside the matching subnet scope. Review the output and check for conflicts with existing leases/reservations before manually merging it into your DHCP server. TomOS does not install, reload or modify the active DHCP service.
+
 ## Cisco phone TFTP call-manager configuration
 
 Generate the Cisco XMLDefault.cnf.xml call-manager target file using the PBX address that phones can actually reach:

@@ -15,13 +15,13 @@ case "$2" in
 esac
 MOCK
 chmod +x "$TMP/asterisk"
-output="$(ASTERISK_BIN="$TMP/asterisk" "$SCRIPT" --mac 00:11:22:AA:BB:CC --extension 1000)"
+output="$(ASTERISK_BIN="$TMP/asterisk" bash "$SCRIPT" --mac 00:11:22:AA:BB:CC --extension 1000)"
 grep -q 'Asterisk 20.7.0' <<<"$output"
 grep -q 'chan_sccp.so is loaded' <<<"$output"
 grep -q 'SEP001122AABBCC Registered' <<<"$output"
 grep -q '1000 In use' <<<"$output"
 grep -q 'MAC: 001122AABBCC' <<<"$output"
-if ASTERISK_BIN="$TMP/asterisk" "$SCRIPT" --mac invalid >/dev/null 2>&1; then
+if ASTERISK_BIN="$TMP/asterisk" bash "$SCRIPT" --mac invalid >/dev/null 2>&1; then
   echo "invalid MAC was accepted" >&2
   exit 1
 fi

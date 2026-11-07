@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Tests for the native TomOS SCCP inventory manager."""
+import json
 import pathlib
 import subprocess
 import sys

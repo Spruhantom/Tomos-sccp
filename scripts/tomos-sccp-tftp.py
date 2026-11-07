@@ -51,18 +51,25 @@ def write_safe(destination, content, force=False):
         raise TftpConfigError(f"refusing to overwrite {destination}; use --force after backing it up")
     if destination.exists() and backup.exists():
         raise TftpConfigError(f"backup already exists: {backup}; move it before using --force")
-    if destination.exists():
-        os.replace(destination, backup)
     fd, temporary = tempfile.mkstemp(prefix=f".{destination.name}.", dir=str(destination.parent))
+    moved_original = False
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             stream.write(content)
         os.chmod(temporary, 0o644)
-        os.replace(temporary, destination)
+        if destination.exists():
+            os.replace(destination, backup)
+            moved_original = True
+        try:
+            os.replace(temporary, destination)
+        except OSError:
+            if moved_original and backup.exists() and not destination.exists():
+                os.replace(backup, destination)
+                moved_original = False
+            raise
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

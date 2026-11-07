@@ -3,6 +3,7 @@
 import json
 import pathlib
 import subprocess
+import sqlite3
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -43,6 +44,9 @@ with tempfile.TemporaryDirectory() as temporary:
         "--label", "Do Not Disturb", "--option1", "DND", "--option2", "busy")
     run(database, "device", "button-add", "--mac", "001122334455", "--type", "speeddial",
         "--label", "Invalid", "--option1", "2000;reboot", expected=2)
+    button_data = json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)
+    assert [item["button_type"] for item in button_data["buttons"]] == ["line", "line", "speeddial", "feature"]
+    run(database, "device", "buttons", "--mac", "001122334455", "--extensions", "1000,1001")
     button_data = json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)
     assert [item["button_type"] for item in button_data["buttons"]] == ["line", "line", "speeddial", "feature"]
     run(database, "line", "update", "--extension", "1001", "--label", "Support",
@@ -178,5 +182,33 @@ with tempfile.TemporaryDirectory() as temporary:
     assert "No phones registered yet" in run(database, "device", "list").stdout
     assert "phone not found" in run(database, "device", "remove", "--mac", "001122334455",
                                     "--confirm", expected=2).stderr
+
+    # Existing installations with the original line-only button table migrate in place.
+    legacy_db = root / "legacy" / "phones.db"
+    run(legacy_db, "init")
+    run(legacy_db, "device", "add", "--mac", "AABBCCDDEEFF", "--model", "7960",
+        "--template-family", "7940_7960", "--extension", "2000", "--description", "Legacy phone")
+    legacy_connection = sqlite3.connect(legacy_db)
+    legacy_connection.execute("PRAGMA foreign_keys=OFF")
+    legacy_connection.execute("DROP TABLE device_buttons")
+    legacy_connection.execute("""
+        CREATE TABLE device_buttons (
+            mac TEXT NOT NULL REFERENCES devices(mac) ON DELETE CASCADE,
+            position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 32),
+            button_type TEXT NOT NULL CHECK(button_type IN ('line')),
+            line_extension TEXT NOT NULL REFERENCES lines(extension),
+            PRIMARY KEY(mac, position)
+        )
+    """)
+    legacy_connection.execute(
+        "INSERT INTO device_buttons VALUES ('AABBCCDDEEFF',1,'line','2000')")
+    legacy_connection.commit()
+    legacy_connection.close()
+    run(legacy_db, "init")
+    migrated = json.loads(run(legacy_db, "device", "show", "--mac", "AABBCCDDEEFF", "--json").stdout)
+    assert migrated["buttons"][0]["button_type"] == "line"
+    run(legacy_db, "device", "button-add", "--mac", "AABBCCDDEEFF", "--type", "speeddial",
+        "--label", "Operator", "--option1", "0")
+    assert len(json.loads(run(legacy_db, "device", "show", "--mac", "AABBCCDDEEFF", "--json").stdout)["buttons"]) == 2
 
 print("TomOS SCCP manager tests passed.")

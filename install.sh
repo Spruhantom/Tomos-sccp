@@ -25,7 +25,6 @@ command -v fwconsole >/dev/null 2>&1 || die "FreePBX was not detected (fwconsole
 command -v asterisk >/dev/null 2>&1 || die "Asterisk is not installed."
 command -v python3 >/dev/null 2>&1 || die "python3 is required."
 [[ "$UPSTREAM_REF" =~ ^[A-Za-z0-9._/-]+$ && "$UPSTREAM_REF" != *..* ]] || die "Invalid TOMOS_SCCP_REF."
-git check-ref-format --branch "$UPSTREAM_REF" >/dev/null 2>&1 || die "Invalid upstream Git ref."
 
 ASTERISK_VERSION="$(asterisk -rx 'core show version' 2>/dev/null | sed -nE 's/^Asterisk ([0-9]+)\..*/\1/p' | head -n1)"
 [[ -n "$ASTERISK_VERSION" ]] || die "Could not read the running Asterisk version."
@@ -38,6 +37,7 @@ log "Detected FreePBX 17 with Asterisk $ASTERISK_VERSION."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends build-essential git autoconf automake libtool pkg-config gettext libxml2-dev libxslt1-dev libssl-dev uuid-dev curl python3
+git check-ref-format --branch "$UPSTREAM_REF" >/dev/null 2>&1 || die "Invalid upstream Git ref."
 
 install -d -m 0755 "$WORKDIR" "$BACKUP_DIR" "$HELPERS"
 curl -fsSL "$REPO_RAW/scripts/manage-modules-conf.py" -o "$HELPERS/manage-modules-conf.py"

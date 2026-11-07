@@ -25,7 +25,7 @@ Review the installer before running it. On a supported FreePBX 17 / Debian 12 ho
 curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install-stack.sh | sudo bash
 ```
 
-The default full-stack command installs the channel driver, TomOS support assets and the native **TomOS SCCP Manager** FreePBX module. Open **Admin → TomOS SCCP** in FreePBX to add, edit and remove Cisco handset inventory. The web page calls the same TomOS manager and SQLite database used by the CLI; it does not maintain a separate phone inventory. Changes are immediately shared between the two interfaces. The module currently manages the phone inventory fields supported by TomOS; advanced softkey/button and line-feature editing is not yet included. Back up the PBX and validate on a staging system before production use. To install only the driver and CLI tools, explicitly opt out with `TOMOS_SCCP_INSTALL_MANAGER=0`.
+The default full-stack command installs the channel driver, TomOS support assets and the native **TomOS SCCP Manager** FreePBX module. Open **Admin → TomOS SCCP** in FreePBX to add, edit and remove Cisco handset inventory. The web page calls the same TomOS manager and SQLite database used by the CLI; it does not maintain a separate phone inventory. Changes are immediately shared between the two interfaces. The module includes shared phone inventory, ordered line/speed-dial/feature button editing and reviewed provisioning workflows. Back up the PBX and validate on a staging system before production use. To install only the driver and CLI tools, explicitly opt out with `TOMOS_SCCP_INSTALL_MANAGER=0`.
 
 Driver-only installation:
 
@@ -195,6 +195,10 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py sep-deploy \
 ```
 
 Deployment rechecks the approval hash, each staged file's SHA-256 and XML validity, and refuses symlinks, non-regular targets and existing TFTP files by default. Add `--force` only when replacing files is intentional; previous files are copied to `.tomos-backup` and a partial deployment is rolled back on failure. Staging and TFTP directories must be separate. This copies files only: it does not reload TFTP, change DHCP/Asterisk, or reboot phones. Test handset retrieval and registration manually before production use.
+
+## Cisco model and firmware compatibility
+
+See [the Cisco compatibility matrix](docs/CISCO-COMPATIBILITY.md) for the initial 7940, 7960 and 7970 provisioning targets, template mappings, firmware evidence status and validation gates. These are candidate targets only; no model/firmware combination is hardware-certified yet.
 
 ## Physical Cisco handset validation
 

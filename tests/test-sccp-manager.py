@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as temporary:
                 "--label", "Front desk", "--cid-name", "Front Desk",
                 "--dhcp-address", "192.168.10.50")
     assert "Added cisco 7960" in run(database, *add_args).stdout
-    assert "Front desk" in run(database, "device", "list").stdout
+    assert "Front desk" in run(database, "device", "list").stdout\n    shared_inventory = json.loads(run(database, "device", "list", "--json").stdout)\n    assert len(shared_inventory) == 1\n    assert shared_inventory[0]["mac"] == "001122334455"\n    assert shared_inventory[0]["dhcp_address"] == "192.168.10.50"\n    assert json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)["extension"] == "1000"
     run(database, "device", "update", "--mac", "001122334455", "--description", "Main reception")
     details = run(database, "device", "show", "--mac", "001122334455").stdout
     assert "description: Main reception" in details

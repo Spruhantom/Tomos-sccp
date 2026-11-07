@@ -114,6 +114,29 @@ with tempfile.TemporaryDirectory() as temporary:
         expected=2)
     assert not failed_output.exists()
 
+
+    # TFTP deployment requires the exact reviewed manifest digest.
+    import hashlib
+    manifest_file = sep_output / "tomos-sccp-sep-manifest.json"
+    manifest_hash = hashlib.sha256(manifest_file.read_bytes()).hexdigest()
+    tftp_root = root / "live-tftp"
+    tftp_root.mkdir()
+    run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
+        "--approve-sha256", "0" * 64, expected=2)
+    run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
+        "--approve-sha256", manifest_hash)
+    deployed = tftp_root / "SEP001122334455.cnf.xml"
+    assert deployed.read_bytes() == sep_file.read_bytes()
+    deployed.write_text("existing live file", encoding="utf-8")
+    run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
+        "--approve-sha256", manifest_hash, expected=2)
+    run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
+        "--approve-sha256", manifest_hash, "--force")
+    assert pathlib.Path(str(deployed) + ".tomos-backup").read_text(encoding="utf-8") == "existing live file"
+    sep_file.write_text(sep_file.read_text(encoding="utf-8") + "<!-- changed -->\\n", encoding="utf-8")
+    run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
+        "--approve-sha256", manifest_hash, expected=2)
+
     run(database, "device", "remove", "--mac", "001122334455", expected=2)
     run(database, "device", "remove", "--mac", "001122334455", "--confirm")
     assert "No phones registered yet" in run(database, "device", "list").stdout

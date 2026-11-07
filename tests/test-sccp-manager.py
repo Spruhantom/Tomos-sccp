@@ -68,8 +68,7 @@ with tempfile.TemporaryDirectory() as temporary:
     backup_target.write_text("existing config\\n", encoding="utf-8")
     run(database, "dhcp-export", "--format", "dnsmasq", "--output", backup_target,
         "--force")
-    assert pathlib.Path(str(backup_target) + ".tomos-backup").read_text(encoding="utf-8") == "existing config
-"
+    assert pathlib.Path(str(backup_target) + ".tomos-backup").read_text(encoding="utf-8") == "existing config\n"
 
     # Duplicate MACs and unsupported vendor/template families are rejected.
     run(database, *add_args, expected=2)

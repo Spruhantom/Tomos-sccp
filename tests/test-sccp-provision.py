@@ -46,6 +46,14 @@ with tempfile.TemporaryDirectory() as directory:
     run("render", "--input", source, "--output-dir", output, "--force")
     assert (output / "sccp_hardware.conf.tomos-backup").read_text(encoding="utf-8") == hardware
 
+    # Preflight every destination before writing either output.
+    partial = root / "partial"
+    partial.mkdir()
+    (partial / "sccp_extensions.conf").write_text("keep existing", encoding="utf-8")
+    run("render", "--input", source, "--output-dir", partial, expected=2)
+    assert not (partial / "sccp_hardware.conf").exists()
+    assert (partial / "sccp_extensions.conf").read_text(encoding="utf-8") == "keep existing"
+
     # Reject malformed MACs, config injection and conflicting shared-line settings.
     invalid = json.loads(json.dumps(valid))
     invalid["devices"][0]["mac"] = "00:11:22:33:44:55"

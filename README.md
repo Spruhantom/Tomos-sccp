@@ -27,7 +27,7 @@ curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install.
 To choose an upstream branch:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install.sh | sudo env TOMOS_SCCP_REF=develop bash
+curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install.sh | sudo env TOMOS_SCCP_REF=stable bash
 ```
 
 The installer requires root, installs build dependencies through APT, and downloads upstream source from GitHub. It does not install an unverified prebuilt binary.

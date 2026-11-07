@@ -34,6 +34,16 @@ with tempfile.TemporaryDirectory() as temporary:
                 "--dhcp-address", "192.168.10.50")
     assert "Added cisco 7960" in run(database, *add_args).stdout
     assert "Front desk" in run(database, "device", "list").stdout
+    run(database, "device", "buttons", "--mac", "001122334455", "--extensions", "1000,1001")
+    button_data = json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)
+    assert button_data["button_extensions"] == "1000,1001"
+    run(database, "line", "update", "--extension", "1001", "--label", "Support",
+        "--description", "Support desk", "--context", "from-internal-xfer")
+    preview = json.loads(run(database, "preview").stdout)
+    assert preview["device_count"] == 1 and preview["button_count"] == 2
+    assert "button = line, 1000\\nbutton = line, 1001" in preview["files"]["sccp_hardware.conf"]
+    assert "[1001]" in preview["files"]["sccp_extensions.conf"]
+
     shared_inventory = json.loads(run(database, "device", "list", "--json").stdout)
     assert len(shared_inventory) == 1
     assert shared_inventory[0]["mac"] == "001122334455"
@@ -90,6 +100,8 @@ with tempfile.TemporaryDirectory() as temporary:
     assert "[SEP001122334455]" in hardware
     assert "description = Main reception" in hardware
     assert "devicetype = 7960" in hardware
+    assert "button = line, 1000\\nbutton = line, 1001" in hardware
+    assert "[1001]" in (output / "sccp_extensions.conf").read_text(encoding="utf-8")
     run(database, "render", "--output-dir", output, expected=2)
 
 
@@ -142,6 +154,12 @@ with tempfile.TemporaryDirectory() as temporary:
     sep_file.write_text(sep_file.read_text(encoding="utf-8") + "<!-- changed -->\\n", encoding="utf-8")
     run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
         "--approve-sha256", manifest_hash, expected=2)
+
+    fake_asterisk = root / "fake-asterisk"
+    fake_asterisk.write_text("#!/bin/sh\\nprintf '%s\\\\n' 'SEP001122334455 001122334455 Registered'\\n", encoding="utf-8")
+    fake_asterisk.chmod(0o755)
+    live_status = json.loads(run(database, "status", "--asterisk-bin", fake_asterisk).stdout)
+    assert live_status["devices"][0]["state"] == "registered"
 
     run(database, "device", "remove", "--mac", "001122334455", expected=2)
     run(database, "device", "remove", "--mac", "001122334455", "--confirm")

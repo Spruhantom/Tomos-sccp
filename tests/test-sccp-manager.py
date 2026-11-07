@@ -49,7 +49,9 @@ with tempfile.TemporaryDirectory() as temporary:
         "--description", "Support desk", "--context", "from-internal-xfer")
     preview = json.loads(run(database, "preview").stdout)
     assert preview["device_count"] == 1 and preview["button_count"] == 4
-    assert "button = line, 1000\nbutton = line, 1001" in preview["files"]["sccp_hardware.conf"]
+    assert ("button = line, 1000\nbutton = line, 1001\n"
+            'button = speeddial, "Reception", 2000, 2000@hints\n'
+            'button = feature, "Do Not Disturb", dnd, busy') in preview["files"]["sccp_hardware.conf"]
     assert "[1001]" in preview["files"]["sccp_extensions.conf"]
 
     shared_inventory = json.loads(run(database, "device", "list", "--json").stdout)
@@ -108,7 +110,9 @@ with tempfile.TemporaryDirectory() as temporary:
     assert "[SEP001122334455]" in hardware
     assert "description = Main reception" in hardware
     assert "devicetype = 7960" in hardware
-    assert "button = line, 1000\nbutton = line, 1001" in hardware
+    assert ("button = line, 1000\nbutton = line, 1001\n"
+            'button = speeddial, "Reception", 2000, 2000@hints\n'
+            'button = feature, "Do Not Disturb", dnd, busy') in hardware
     assert "[1001]" in (output / "sccp_extensions.conf").read_text(encoding="utf-8")
     run(database, "render", "--output-dir", output, expected=2)
 

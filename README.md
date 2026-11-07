@@ -87,7 +87,19 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-tftp.py \
   --output /var/tmp/XMLDefault.cnf.xml
 ```
 
-To deploy directly into an existing TFTP root, use --output /srv/tftp --deploy. An optional --backup-pbx-address adds a second call-manager entry. Existing files are preserved unless --force is supplied, which first saves a .tomos-backup copy. The generated XML intentionally contains no firmware load strings: firmware varies by Cisco model and must be selected and tested separately. The tool does not configure DHCP option 150, install a TFTP daemon, or generate model-specific SEP<MAC>.cnf.xml files.
+To deploy directly into an existing TFTP root, use --output /srv/tftp --deploy. An optional --backup-pbx-address adds a second call-manager entry. Existing files are preserved unless --force is supplied, which first saves a .tomos-backup copy. The generated XML intentionally contains no firmware load strings: firmware varies by Cisco model and must be selected and tested separately. The tool does not configure DHCP option 150 or install a TFTP daemon.
+
+Generate a per-phone SEP file from one of the upstream model templates staged by the installer (supported families: 69xx, 791x, 7925, 7937, 7940/7960, 796x, 797x and 797x extended):
+
+```bash
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-sep.py \\
+  --model 796x \\
+  --mac 001122AABBCC \\
+  --pbx-address 192.168.10.5 \\
+  --output /var/tmp/SEP001122AABBCC.cnf.xml
+```
+
+Use `--output /srv/tftp --deploy` to write the correctly named `SEP<MAC>.cnf.xml` into an existing TFTP root. The renderer substitutes the PBX address placeholders, removes the upstream sample NTP server unless `--ntp-server` is supplied, and preserves existing files unless `--force` is supplied. Model templates are upstream examples, not a guarantee that every firmware/model combination will register; validate on the target handset before rollout.
 
 ## Diagnostics
 

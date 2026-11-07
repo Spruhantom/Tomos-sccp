@@ -18,7 +18,7 @@ jobs:
           bash -n scripts/tomos-sccp-doctor.sh
           bash -n tests/test-installer-static.sh
       - name: ShellCheck
-        run: shellcheck install.sh scripts/tomos-sccp-doctor.sh tests/test-installer-static.sh
+        run: shellcheck -S error install.sh scripts/tomos-sccp-doctor.sh tests/test-installer-static.sh
       - name: Static installer checks
         run: bash tests/test-installer-static.sh
       - name: modules.conf idempotence

@@ -35,6 +35,7 @@ TomOS SCCP is an integration layer around the original [chan-sccp/chan-sccp](htt
 - [ ] Test module install, upgrade, backup and uninstall on clean FreePBX 17
 
 ## Milestone 4 — TomOS management and monitoring
+- [x] Native TomOS SQLite provisioning manager with vendor/template catalogue and device inventory
 - [ ] TomOS-branded FreePBX administration workflow
 - [x] JSON-based device inventory and MAC-address validation (staging renderer)
 - [ ] Network device discovery

@@ -98,11 +98,43 @@ def connect_database(path):
         CREATE TABLE IF NOT EXISTS device_buttons (
             mac TEXT NOT NULL REFERENCES devices(mac) ON DELETE CASCADE,
             position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 32),
-            button_type TEXT NOT NULL CHECK(button_type IN ('line')),
-            line_extension TEXT NOT NULL REFERENCES lines(extension),
+            button_type TEXT NOT NULL CHECK(button_type IN ('line','speeddial','feature','empty')),
+            line_extension TEXT REFERENCES lines(extension),
+            button_label TEXT,
+            option1 TEXT,
+            option2 TEXT,
             PRIMARY KEY(mac, position)
         );
     """)
+    button_schema = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='device_buttons'"
+    ).fetchone()["sql"]
+    button_columns = {row["name"]: row for row in connection.execute("PRAGMA table_info(device_buttons)")}
+    if ("CHECK(button_type IN ('line'))" in button_schema
+            or button_columns["line_extension"]["notnull"]):
+        connection.execute("ALTER TABLE device_buttons RENAME TO device_buttons_legacy")
+        connection.execute("""
+            CREATE TABLE device_buttons (
+                mac TEXT NOT NULL REFERENCES devices(mac) ON DELETE CASCADE,
+                position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 32),
+                button_type TEXT NOT NULL CHECK(button_type IN ('line','speeddial','feature','empty')),
+                line_extension TEXT REFERENCES lines(extension),
+                button_label TEXT,
+                option1 TEXT,
+                option2 TEXT,
+                PRIMARY KEY(mac, position)
+            )
+        """)
+        connection.execute("""
+            INSERT INTO device_buttons(mac,position,button_type,line_extension,button_label)
+            SELECT mac,position,button_type,line_extension,line_extension
+            FROM device_buttons_legacy
+        """)
+        connection.execute("DROP TABLE device_buttons_legacy")
+    else:
+        for column in ("button_label", "option1", "option2"):
+            if column not in button_columns:
+                connection.execute(f"ALTER TABLE device_buttons ADD COLUMN {column} TEXT")
     connection.execute(
         "INSERT OR IGNORE INTO vendors(slug, display_name, protocol) VALUES (?, ?, ?)",
         ("cisco", "Cisco", "SCCP")
@@ -365,11 +397,122 @@ def show_device(db, mac, as_json=False):
 
 def get_device_buttons(db, mac):
     return [dict(row) for row in db.execute(
-        "SELECT b.position,b.button_type,b.line_extension,l.label,l.description,l.context,l.cid_name,l.cid_num "
-        "FROM device_buttons b JOIN lines l ON l.extension=b.line_extension "
+        "SELECT b.position,b.button_type,b.line_extension,b.button_label,b.option1,b.option2,"
+        "l.label AS line_label,l.description AS line_description,l.context,l.cid_name,l.cid_num "
+        "FROM device_buttons b LEFT JOIN lines l ON l.extension=b.line_extension "
         "WHERE b.mac=? ORDER BY b.position",
         (mac,)
     ).fetchall()]
+
+
+def _button_label(value):
+    label = clean_text(value, "button label", 40)
+    if any(char in label for char in ('"', "'", ",", "\\")):
+        raise ManagerError("button label must not contain quotes, commas or backslashes")
+    return label
+
+
+def _validate_button(button_type, label=None, option1=None, option2=None, line_extension=None):
+    if button_type not in ("line", "speeddial", "feature", "empty"):
+        raise ManagerError("button type must be line, speeddial, feature or empty")
+    if button_type == "empty":
+        if any(value for value in (label, option1, option2, line_extension)):
+            raise ManagerError("empty buttons do not accept label or options")
+        return {"button_type": "empty", "button_label": None,
+                "line_extension": None, "option1": None, "option2": None}
+    if button_type == "line":
+        if not line_extension or not EXT_RE.fullmatch(line_extension):
+            raise ManagerError("line buttons require a 1–20 digit line extension")
+        if any(value for value in (option1, option2)):
+            raise ManagerError("line buttons do not accept extra options")
+        label = _button_label(label or line_extension)
+    elif button_type == "speeddial":
+        label = _button_label(label or "Speed dial")
+        if not option1 or not re.fullmatch(r"[0-9*+(). -]{1,40}", option1):
+            raise ManagerError("speed-dial destination must contain only dialable digits and common separators")
+        if option2 and not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}@[A-Za-z0-9_.-]{1,80}", option2):
+            raise ManagerError("BLF hint must use extension@context syntax")
+    elif button_type == "feature":
+        label = _button_label(label or "Feature")
+        feature = (option1 or "").lower()
+        supported = {
+            "privacy": {"callpresent", "hint"},
+            "cfwdall": {"number"},
+            "cfwbusy": {"number"},
+            "dnd": {"busy", "silent", ""},
+            "monitor": {""},
+            "parkinglot": {"parameter"},
+            "devstate": {"parameter"},
+        }
+        if feature not in supported:
+            raise ManagerError("unsupported feature; choose privacy, cfwdall, cfwbusy, DND, monitor, parkinglot or devstate")
+        parameter = (option2 or "").lower()
+        if parameter not in supported[feature]:
+            raise ManagerError(f"invalid parameter for feature {feature}")
+        if feature in ("cfwdall", "cfwbusy") and not re.fullmatch(r"[0-9*+]{1,40}", parameter):
+            raise ManagerError("call-forward feature requires a dialable destination number")
+        if feature in ("parkinglot", "devstate") and not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", parameter):
+            raise ManagerError(f"{feature} requires a valid identifier")
+        option1 = feature
+        option2 = parameter or None
+    return {"button_type": button_type, "button_label": label,
+            "line_extension": line_extension if button_type == "line" else None,
+            "option1": option1, "option2": option2}
+
+
+def _insert_button(db, mac, position, button):
+    db.execute(
+        """INSERT INTO device_buttons
+           (mac,position,button_type,line_extension,button_label,option1,option2)
+           VALUES (?,?,?,?,?,?,?)""",
+        (mac, position, button["button_type"], button["line_extension"],
+         button["button_label"], button["option1"], button["option2"])
+    )
+
+
+def add_device_button(db, args):
+    mac = args.mac.replace(":", "").replace("-", "").upper()
+    if not MAC_RE.fullmatch(mac):
+        raise ManagerError("--mac must contain exactly 12 hexadecimal characters")
+    if db.execute("SELECT 1 FROM devices WHERE mac=?", (mac,)).fetchone() is None:
+        raise ManagerError(f"phone not found: {mac}")
+    button = _validate_button(args.type, args.label, args.option1, args.option2, args.line_extension)
+    count = db.execute("SELECT COUNT(*) FROM device_buttons WHERE mac=?", (mac,)).fetchone()[0]
+    position = args.position if args.position is not None else count + 1
+    if position < 1 or position > count + 1 or count >= 32:
+        raise ManagerError(f"button position must be between 1 and {min(count + 1, 32)}; maximum 32 buttons")
+    with db:
+        db.execute("UPDATE device_buttons SET position=-position WHERE mac=? AND position>=?",
+                   (mac, position))
+        db.execute("UPDATE device_buttons SET position=-position+1 WHERE mac=? AND position<0", (mac,))
+        if button["button_type"] == "line":
+            now = datetime.now(timezone.utc).isoformat()
+            ext = button["line_extension"]
+            db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
+                       (ext, button["button_label"], button["button_label"], "from-internal-xfer", ext, ext, now))
+        _insert_button(db, mac, position, button)
+        if button["button_type"] == "line" and position == 1:
+            db.execute("UPDATE devices SET extension=?,updated_at=? WHERE mac=?",
+                       (button["line_extension"], datetime.now(timezone.utc).isoformat(), mac))
+    print(f"Added {button['button_type']} button at position {position} on SEP{mac}.")
+
+
+def remove_device_button(db, args):
+    mac = args.mac.replace(":", "").replace("-", "").upper()
+    if not MAC_RE.fullmatch(mac):
+        raise ManagerError("--mac must contain exactly 12 hexadecimal characters")
+    with db:
+        cursor = db.execute("DELETE FROM device_buttons WHERE mac=? AND position=?", (mac, args.position))
+        if cursor.rowcount != 1:
+            raise ManagerError(f"button position {args.position} not found on SEP{mac}")
+        db.execute("UPDATE device_buttons SET position=-position WHERE mac=? AND position>?", (mac, args.position))
+        db.execute("UPDATE device_buttons SET position=-position-1 WHERE mac=? AND position<0", (mac,))
+        primary = db.execute("SELECT line_extension FROM device_buttons WHERE mac=? AND position=1 AND button_type='line'",
+                              (mac,)).fetchone()
+        if primary:
+            db.execute("UPDATE devices SET extension=?,updated_at=? WHERE mac=?",
+                       (primary["line_extension"], datetime.now(timezone.utc).isoformat(), mac))
+    print(f"Removed button {args.position} from SEP{mac}.")
 
 
 def set_device_buttons(db, mac, raw_extensions):
@@ -391,8 +534,8 @@ def set_device_buttons(db, mac, raw_extensions):
                        (extension, extension, extension, device["context"], extension, extension, now))
         db.execute("DELETE FROM device_buttons WHERE mac=?", (mac,))
         for position, extension in enumerate(extensions, 1):
-            db.execute("INSERT INTO device_buttons VALUES (?,?,'line',?)",
-                       (mac, position, extension))
+            button = _validate_button("line", extension, line_extension=extension)
+            _insert_button(db, mac, position, button)
         db.execute("UPDATE devices SET extension=?,updated_at=? WHERE mac=?",
                    (extensions[0], now, mac))
     print(f"Saved {len(extensions)} line button(s) for SEP{mac}.")
@@ -522,10 +665,22 @@ def render_inventory(db, output_dir, force):
     hardware_text = hardware_path.read_text(encoding="utf-8")
     for row in rows:
         buttons = get_device_buttons(db, row["mac"])
-        button_lines = "\n".join(f"button = line, {item['line_extension']}" for item in buttons)
+        button_lines = []
+        for button in buttons:
+            kind = button["button_type"]
+            if kind == "line":
+                button_lines.append(f"button = line, {button['line_extension']}")
+            elif kind == "speeddial":
+                hint = f", {button['option2']}" if button["option2"] else ""
+                button_lines.append(f'button = speeddial, "{button["button_label"]}", {button["option1"]}{hint}')
+            elif kind == "feature":
+                parameter = f", {button['option2']}" if button["option2"] else ""
+                button_lines.append(f'button = feature, "{button["button_label"]}", {button["option1"]}{parameter}')
+            elif kind == "empty":
+                button_lines.append("button = empty")
         default_line = f"button = line, {row['extension']}"
         if button_lines:
-            hardware_text = hardware_text.replace(default_line, button_lines, 1)
+            hardware_text = hardware_text.replace(default_line, "\n".join(button_lines), 1)
     hardware_path.write_text(hardware_text, encoding="utf-8")
 
     extension_path = pathlib.Path(output_dir) / "sccp_extensions.conf"
@@ -798,6 +953,17 @@ def main():
     buttons = device_sub.add_parser("buttons", help="configure line buttons for a phone")
     buttons.add_argument("--mac", required=True)
     buttons.add_argument("--extensions", required=True, help="comma-separated line extensions in button order")
+    button_add = device_sub.add_parser("button-add", help="add a line, speed-dial, feature or empty button")
+    button_add.add_argument("--mac", required=True)
+    button_add.add_argument("--position", type=int)
+    button_add.add_argument("--type", choices=("line", "speeddial", "feature", "empty"), required=True)
+    button_add.add_argument("--label")
+    button_add.add_argument("--line-extension")
+    button_add.add_argument("--option1", help="speed-dial number or feature type")
+    button_add.add_argument("--option2", help="optional BLF hint or feature parameter")
+    button_remove = device_sub.add_parser("button-remove", help="remove a button by position")
+    button_remove.add_argument("--mac", required=True)
+    button_remove.add_argument("--position", type=int, required=True)
 
     line = sub.add_parser("line", help="manage shared line configuration")
     line_sub = line.add_subparsers(dest="action", required=True)
@@ -857,6 +1023,10 @@ def main():
                 update_device(db, args)
             elif args.action == "buttons":
                 set_device_buttons(db, args.mac, args.extensions)
+            elif args.action == "button-add":
+                add_device_button(db, args)
+            elif args.action == "button-remove":
+                remove_device_button(db, args)
             elif args.action == "list":
                 list_devices(db, args.json)
             elif args.action == "show":

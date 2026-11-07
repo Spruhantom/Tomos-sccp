@@ -117,6 +117,11 @@ with tempfile.TemporaryDirectory() as temporary:
     assert ("button = line, 1000\nbutton = line, 1001\n"
             'button = speeddial, "Reception", 2000, 2000@hints\n'
             'button = feature, "Do Not Disturb", dnd, busy') in hardware
+    run(database, "device", "button-remove", "--mac", "001122334455", "--position", "4")
+    after_remove = json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)
+    assert [(item["position"], item["button_type"]) for item in after_remove["buttons"]] == [
+        (1, "line"), (2, "line"), (3, "speeddial")]
+
     assert "[1001]" in (output / "sccp_extensions.conf").read_text(encoding="utf-8")
     run(database, "render", "--output-dir", output, expected=2)
 

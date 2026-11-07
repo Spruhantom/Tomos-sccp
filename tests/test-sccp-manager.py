@@ -37,10 +37,18 @@ with tempfile.TemporaryDirectory() as temporary:
     run(database, "device", "buttons", "--mac", "001122334455", "--extensions", "1000,1001")
     button_data = json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)
     assert button_data["button_extensions"] == "1000,1001"
+    run(database, "device", "button-add", "--mac", "001122334455", "--type", "speeddial",
+        "--label", "Reception", "--option1", "2000", "--option2", "2000@hints")
+    run(database, "device", "button-add", "--mac", "001122334455", "--type", "feature",
+        "--label", "Do Not Disturb", "--option1", "DND", "--option2", "busy")
+    run(database, "device", "button-add", "--mac", "001122334455", "--type", "speeddial",
+        "--label", "Invalid", "--option1", "2000;reboot", expected=2)
+    button_data = json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)
+    assert [item["button_type"] for item in button_data["buttons"]] == ["line", "line", "speeddial", "feature"]
     run(database, "line", "update", "--extension", "1001", "--label", "Support",
         "--description", "Support desk", "--context", "from-internal-xfer")
     preview = json.loads(run(database, "preview").stdout)
-    assert preview["device_count"] == 1 and preview["button_count"] == 2
+    assert preview["device_count"] == 1 and preview["button_count"] == 4
     assert "button = line, 1000\nbutton = line, 1001" in preview["files"]["sccp_hardware.conf"]
     assert "[1001]" in preview["files"]["sccp_extensions.conf"]
 

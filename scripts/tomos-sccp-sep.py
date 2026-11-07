@@ -17,7 +17,7 @@ class SepConfigError(ValueError):
     pass
 
 
-def render(template_path, mac, pbx_address, port=2000, ntp_server=None):
+def render(template_path, mac, pbx_address, port=2000, ntp_server=None, ssh_user=None, ssh_password=None):
     if not MAC_RE.fullmatch(mac):
         raise SepConfigError("MAC address must contain exactly 12 hexadecimal characters")
     try:
@@ -97,7 +97,7 @@ def main():
     parser.add_argument("--mac", required=True, help="12-hex-digit Cisco phone MAC address")
     parser.add_argument("--pbx-address", required=True, help="phone-reachable PBX IPv4 address")
     parser.add_argument("--port", type=int, default=2000)
-    parser.add_argument("--ntp-server", help="optional NTP server IPv4 address")
+    parser.add_argument("--ntp-server", help="optional NTP server IPv4 address")\n    parser.add_argument("--ssh-user", help="phone SSH username (required to replace upstream cisco/cisco defaults)")\n    parser.add_argument("--ssh-password", help="phone SSH password (required to replace upstream cisco/cisco defaults)")
     parser.add_argument("--template-dir", default="/usr/share/tomos-sccp/tftp-templates")
     parser.add_argument("--output", required=True, help="output filename or existing TFTP root with --deploy")
     parser.add_argument("--deploy", action="store_true")
@@ -105,7 +105,7 @@ def main():
     args = parser.parse_args()
     try:
         template = pathlib.Path(args.template_dir) / f"SEP0000000000.cnf.xml_{args.model}_template"
-        content = render(template, args.mac, args.pbx_address, args.port, args.ntp_server)
+        content = render(template, args.mac, args.pbx_address, args.port, args.ntp_server, args.ssh_user, args.ssh_password)
         output = pathlib.Path(args.output)
         if args.deploy:
             if not output.is_dir():

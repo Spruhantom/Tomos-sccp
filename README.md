@@ -76,6 +76,19 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-provision.py render --input device
 
 The renderer validates Cisco MAC addresses, model-number syntax, extension numbers, Asterisk context names and config-safe text. It supports multiple phones sharing one line when their line settings match. It writes separate `sccp_hardware.conf` and `sccp_extensions.conf` include fragments into a staging directory; it does **not** edit live Asterisk configuration, create extensions in FreePBX, deploy per-phone XML, set DHCP/TFTP, or reload Asterisk. Review the generated files and confirm the dialplan context and FreePBX extension exist before manually integrating them. Existing output files are never overwritten unless `--force` is supplied; then a `.tomos-backup` copy is preserved.
 
+## Cisco phone TFTP call-manager configuration
+
+Generate the Cisco XMLDefault.cnf.xml call-manager target file using the PBX address that phones can actually reach:
+
+```bash
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-tftp.py \
+  --pbx-address 192.168.10.5 \
+  --port 2000 \
+  --output /var/tmp/XMLDefault.cnf.xml
+```
+
+To deploy directly into an existing TFTP root, use --output /srv/tftp --deploy. An optional --backup-pbx-address adds a second call-manager entry. Existing files are preserved unless --force is supplied, which first saves a .tomos-backup copy. The generated XML intentionally contains no firmware load strings: firmware varies by Cisco model and must be selected and tested separately. The tool does not configure DHCP option 150, install a TFTP daemon, or generate model-specific SEP<MAC>.cnf.xml files.
+
 ## Diagnostics
 
 ```bash
@@ -106,9 +119,10 @@ bash tests/test-installer-static.sh
 bash tests/test-tftp-templates.sh
 python3 tests/test-modules-conf.py
 python3 tests/test-sccp-provision.py
+python3 tests/test-sccp-tftp.py
 ```
 
-GitHub Actions runs ShellCheck, syntax checks, static checks, module-configuration idempotence tests and safe TFTP template deployment and SCCP provisioning validation/render tests.
+GitHub Actions runs ShellCheck, syntax checks, static checks, module-configuration idempotence tests and safe TFTP template deployment and SCCP provisioning and Cisco TFTP XML generation tests.
 
 ## Upstream and licensing
 

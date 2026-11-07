@@ -287,7 +287,7 @@ def add_device(db, args):
     with db:
         db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
                    (extension, label, description, context, cid_name, cid_num, now))
-        db.execute("INSERT OR IGNORE INTO device_buttons VALUES (?,1,'line',?)", (mac, extension))
+        db.execute("INSERT OR IGNORE INTO device_buttons(mac,position,button_type,line_extension,button_label) VALUES (?,1,'line',?,?)", (mac, extension, extension))
     print(f"Added {vendor} {model} phone SEP{mac} on extension {extension}.")
 
 
@@ -343,7 +343,7 @@ def update_device(db, args):
             button = db.execute("SELECT line_extension FROM device_buttons WHERE mac=? AND position=1",
                                 (mac,)).fetchone()
             if button is None:
-                db.execute("INSERT INTO device_buttons VALUES (?,1,'line',?)", (mac, values["extension"]))
+                db.execute("INSERT INTO device_buttons(mac,position,button_type,line_extension,button_label) VALUES (?,1,'line',?,?)", (mac, values["extension"], values["extension"]))
             elif button["line_extension"] != row["extension"]:
                 db.execute("UPDATE device_buttons SET line_extension=? WHERE mac=? AND position=1",
                            (values["extension"], mac))

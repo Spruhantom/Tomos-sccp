@@ -42,7 +42,6 @@ run_cli() {
     fail "Asterisk CLI command failed: $command"
     return 1
   fi
-  printf '%s' "$output"
 }
 
 version="$("$ASTERISK_BIN" -rx 'core show version' 2>&1)"
@@ -63,8 +62,8 @@ if (( status != 0 )) || ! grep -Eq 'chan_sccp\.so[[:space:]]' <<<"$modules"; the
 fi
 printf '[ OK ] chan_sccp.so is loaded\n'
 
-devices="$(run_cli 'sccp show devices')" || exit 1
-lines="$(run_cli 'sccp show lines')" || exit 1
+run_cli 'sccp show devices' || exit 1
+run_cli 'sccp show lines' || exit 1
 printf '\n--- Expected handset reference ---\n'
 [[ -z "$MAC" ]] || printf 'MAC: %s (compare with the device listing above)\n' "$MAC"
 [[ -z "$EXTENSION" ]] || printf 'Extension: %s (compare with the line listing above)\n' "$EXTENSION"

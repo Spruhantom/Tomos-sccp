@@ -156,7 +156,7 @@ with tempfile.TemporaryDirectory() as temporary:
         "--approve-sha256", manifest_hash, expected=2)
 
     fake_asterisk = root / "fake-asterisk"
-    fake_asterisk.write_text("#!/bin/sh\\nprintf '%s\\\\n' 'SEP001122334455 001122334455 Registered'\\n", encoding="utf-8")
+    fake_asterisk.write_text("#!/bin/sh\nprintf '%s\\n' 'SEP001122334455 001122334455 Registered'\n", encoding="utf-8")
     fake_asterisk.chmod(0o755)
     live_status = json.loads(run(database, "status", "--asterisk-bin", fake_asterisk).stdout)
     assert live_status["devices"][0]["state"] == "registered"

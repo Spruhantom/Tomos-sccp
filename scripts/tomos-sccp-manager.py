@@ -431,7 +431,7 @@ def export_sep_configs(db, args):
             for row, target in zip(rows, targets)
         ],
     }
-    manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\\n").encode("utf-8")
+    manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
     if manifest_path.exists():
         import shutil
         shutil.copy2(manifest_path, manifest_backup)

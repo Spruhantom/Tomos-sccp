@@ -539,13 +539,19 @@ def set_device_buttons(db, mac, raw_extensions):
     if any(not EXT_RE.fullmatch(value) for value in extensions):
         raise ManagerError("button extensions must contain 1–20 digits")
     now = datetime.now(timezone.utc).isoformat()
+    existing_non_line = [dict(row) for row in db.execute(
+        "SELECT * FROM device_buttons WHERE mac=? AND button_type!='line' ORDER BY position",
+        (mac,)).fetchall()]
+    if len(extensions) + len(existing_non_line) > 32:
+        raise ManagerError("line buttons plus existing speed-dial/feature buttons exceed the 32-button limit")
     with db:
         for extension in extensions:
             db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
                        (extension, extension, extension, device["context"], extension, extension, now))
         db.execute("DELETE FROM device_buttons WHERE mac=?", (mac,))
-        for position, extension in enumerate(extensions, 1):
-            button = _validate_button("line", extension, line_extension=extension)
+        ordered = [_validate_button("line", extension, line_extension=extension) for extension in extensions]
+        ordered.extend(existing_non_line)
+        for position, button in enumerate(ordered, 1):
             _insert_button(db, mac, position, button)
         db.execute("UPDATE devices SET extension=?,updated_at=? WHERE mac=?",
                    (extensions[0], now, mac))

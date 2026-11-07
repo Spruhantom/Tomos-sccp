@@ -11,11 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install test tools
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck php-cli
       - name: Bash syntax
         run: |
           bash -n install.sh
           bash -n install-manager.sh
+          php -l freepbx-module/tomos_sccp/page.tomos_sccp.php
           bash -n install-stack.sh
           bash -n scripts/tomos-sccp-install-tftp-templates.sh
           bash -n tests/test-tftp-templates.sh

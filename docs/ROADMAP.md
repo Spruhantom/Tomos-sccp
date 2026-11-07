@@ -20,6 +20,7 @@ TomOS SCCP is an integration layer around the original [chan-sccp/chan-sccp](htt
 - [x] Stage upstream Cisco phone model/TFTP templates
 - [x] Add an explicit TFTP-root deployment helper
 - [x] Preserve existing TFTP files and never deploy sample credentials automatically
+- [x] Add initial 7940 / 7960 / 7970 model-to-template compatibility rules and CI fixture checks
 - [ ] Validate supported phone models and firmware against target handsets
 - [x] Generate a minimal XMLDefault.cnf.xml with primary/optional backup PBX targets
 - [x] Render model-specific SEP<MAC>.cnf.xml files from upstream templates (handset/firmware validation remains open)

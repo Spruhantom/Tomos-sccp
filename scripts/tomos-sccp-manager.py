@@ -441,8 +441,11 @@ def preview_inventory(db):
 
 
 def live_device_status(db, asterisk_bin):
-    result = subprocess.run([asterisk_bin, "-rx", "sccp show devices"],
-                            text=True, capture_output=True, check=False, timeout=10)
+    try:
+        result = subprocess.run([asterisk_bin, "-rx", "sccp show devices"],
+                                text=True, capture_output=True, check=False, timeout=10)
+    except subprocess.TimeoutExpired as exc:
+        raise ManagerError("Asterisk SCCP status command timed out after 10 seconds") from exc
     output = (result.stdout + result.stderr).strip()
     if result.returncode:
         raise ManagerError("Asterisk SCCP status command failed: " + output)

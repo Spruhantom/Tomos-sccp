@@ -1,6 +1,6 @@
 # TomOS SCCP for FreePBX 17
 
-TomOS SCCP is an installer and operations helper for the upstream [chan-sccp](https://github.com/chan-sccp/chan-sccp) Asterisk channel driver on FreePBX 17 / Debian 12. It does not reimplement or fork the SCCP protocol driver.
+TomOS SCCP is an installer and operations helper for the FreePBX 17-tested [chan-sccp driver fork](https://github.com/nortien/chan-sccp) Asterisk channel driver on FreePBX 17 / Debian 12. It does not reimplement or fork the SCCP protocol driver.
 
 > **Status:** early integration release. CI/static tests are not a substitute for testing against a real FreePBX 17 installation and physical Cisco handsets. Back up the PBX and test on a staging system before production use.
 
@@ -14,7 +14,7 @@ TomOS SCCP is an installer and operations helper for the upstream [chan-sccp](ht
 - Checks documented Asterisk module dependencies.
 - Records the upstream source commit used for the build.
 - Installs a read-only diagnostic utility.
-- Supports selecting an upstream Git ref with TOMOS_SCCP_REF (default: develop).
+- Supports selecting an upstream Git ref with TOMOS_SCCP_REF (default: stable).
 
 ## One-line installation
 
@@ -68,7 +68,7 @@ The installer manages only its marked block in /etc/asterisk/modules.conf. FreeP
 
 This release installs the channel driver only. It does not create extensions, phone credentials, device identities, dialplan entries or TFTP configuration, and it does not overwrite /etc/asterisk/chan_sccp.conf. Cisco device provisioning and FreePBX GUI integration remain future work.
 
-Consult the [upstream documentation](https://github.com/chan-sccp/chan-sccp/wiki). Never use example credentials on a live PBX.
+Consult the [upstream documentation](https://github.com/nortien/sccp_manager/wiki). Never use example credentials on a live PBX.
 
 ## Tests
 
@@ -83,4 +83,4 @@ GitHub Actions runs ShellCheck, Bash syntax checks and the static/idempotence te
 
 ## Upstream and licence
 
-The SCCP channel driver is maintained by [chan-sccp](https://github.com/chan-sccp/chan-sccp). TomOS provides integration and operational tooling and does not claim ownership of the upstream driver. The TomOS scripts are MIT-licensed; see [LICENSE](LICENSE). The upstream driver retains its own licence.
+The SCCP protocol implementation originates with [chan-sccp](https://github.com/chan-sccp/chan-sccp); TomOS builds the FreePBX 17-tested [nortien driver fork](https://github.com/nortien/chan-sccp). The companion [SCCP Manager](https://github.com/nortien/sccp_manager) provides FreePBX GUI device, line, button and TFTP provisioning; its separate GPL licence and installation are documented upstream. TomOS provides integration and operational tooling and does not claim ownership of the upstream driver. The TomOS scripts are MIT-licensed; see [LICENSE](LICENSE). The upstream driver retains its own licence.

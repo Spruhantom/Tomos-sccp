@@ -27,3 +27,5 @@ jobs:
         run: bash tests/test-installer-static.sh && bash tests/test-tftp-templates.sh
       - name: modules.conf idempotence
         run: python3 tests/test-modules-conf.py
+      - name: SCCP provisioning tests
+        run: python3 tests/test-sccp-provision.py

@@ -4,8 +4,8 @@ set -Eeuo pipefail
 
 PROJECT="TomOS SCCP"
 REPO_RAW="https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main"
-UPSTREAM_URL="https://github.com/nortien/chan-sccp.git"
-UPSTREAM_REF="${TOMOS_SCCP_REF:-stable}"
+UPSTREAM_URL="https://github.com/chan-sccp/chan-sccp.git"
+UPSTREAM_REF="${TOMOS_SCCP_REF:-develop}"
 WORKDIR="/usr/src/tomos-sccp"
 ASTERISK_ETC="/etc/asterisk"
 MODULES_CONF="${ASTERISK_ETC}/modules.conf"
@@ -31,18 +31,18 @@ ASTERISK_VERSION="$(asterisk -rx 'core show version' 2>/dev/null | sed -nE 's/^A
 (( ASTERISK_VERSION >= 18 && ASTERISK_VERSION <= 23 )) || die "Asterisk $ASTERISK_VERSION is outside the supported major range (18–23). No changes made."
 MODULE_DIR="$(asterisk -rx 'core show settings' 2>/dev/null | sed -nE 's/^[[:space:]]*Module directory:[[:space:]]*(.*)$/\1/p' | head -n1)"
 [[ -n "$MODULE_DIR" && -d "$MODULE_DIR" ]] || die "Could not determine Asterisk's active module directory."
-[[ -f /usr/include/asterisk.h && -f /usr/include/asterisk/module.h ]] || die "Matching FreePBX/Sangoma Asterisk development headers are missing. Install the vendor-matched Asterisk $ASTERISK_VERSION development package; generic Debian headers may not match your PBX."
 
 log "Detected FreePBX 17 with Asterisk $ASTERISK_VERSION."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y --no-install-recommends build-essential git autoconf automake libtool pkg-config gettext libxml2-dev libxslt1-dev libssl-dev uuid-dev curl python3
+apt-get install -y --no-install-recommends build-essential git autoconf automake libtool pkg-config gettext libxml2-dev libxslt1-dev libssl-dev uuid-dev libevent-dev libltdl-dev curl python3
 git check-ref-format --branch "$UPSTREAM_REF" >/dev/null 2>&1 || die "Invalid upstream Git ref."
 
 install -d -m 0755 "$WORKDIR" "$BACKUP_DIR" "$HELPERS"
 curl -fsSL "$REPO_RAW/scripts/manage-modules-conf.py" -o "$HELPERS/manage-modules-conf.py"
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-doctor.sh" -o "$HELPERS/tomos-sccp-doctor.sh"
-chmod 0755 "$HELPERS/tomos-sccp-doctor.sh"
+curl -fsSL "$REPO_RAW/scripts/tomos-sccp-install-tftp-templates.sh" -o "$HELPERS/tomos-sccp-install-tftp-templates.sh"
+chmod 0755 "$HELPERS/tomos-sccp-doctor.sh" "$HELPERS/tomos-sccp-install-tftp-templates.sh"
 [[ ! -f "$MODULE_DIR/chan_sccp.so" ]] || cp -a "$MODULE_DIR/chan_sccp.so" "$BACKUP_DIR/chan_sccp.so.previous"
 [[ ! -f "$MODULES_CONF" ]] || cp -a "$MODULES_CONF" "$BACKUP_DIR/modules.conf.original"
 
@@ -56,14 +56,22 @@ else
 fi
 cd "$WORKDIR/chan-sccp"
 [[ -x ./configure ]] || die "Upstream configure script is missing."
-log "Building against the installed Asterisk headers."
-./configure
+log "Configuring upstream chan-sccp with conference support."
+./configure --enable-conference
 make -j"$(nproc)"
 STAGE="$(mktemp -d /tmp/tomos-sccp-stage.XXXXXX)"
 trap 'rm -rf "${STAGE:-}"' EXIT
 make install DESTDIR="$STAGE"
 BUILT_MODULE="$(find "$STAGE" -type f -name chan_sccp.so -print -quit)"
 [[ -n "$BUILT_MODULE" ]] || die "Staged build did not produce chan_sccp.so."
+install -d -m 0755 /usr/share/tomos-sccp
+# Keep upstream configuration examples and model templates separate from
+# live Asterisk/TFTP configuration. Never deploy sample credentials.
+install -d -m 0755 /usr/share/tomos-sccp/examples /usr/share/tomos-sccp/tftp-templates
+for example in sccp.conf.minimal sccp.conf.freepbx sccp_extensions.conf.freepbx sccp_hardware.conf.freepbx; do
+  [[ ! -f "conf/$example" ]] || install -m 0644 "conf/$example" "/usr/share/tomos-sccp/examples/$example"
+done
+find conf/tftp -maxdepth 1 -type f \\( -name '*_template' -o -name 'XMLDefault*.xml' -o -name 'WLANDefault.xml' -o -name 'properties.xml' \\) -exec install -m 0644 -t /usr/share/tomos-sccp/tftp-templates {} +
 
 for dependency in app_voicemail.so bridge_simple.so bridge_native_rtp.so bridge_softmix.so bridge_holding.so res_stasis.so res_stasis_device_state.so; do
   status="$(asterisk -rx "module show like $dependency" 2>/dev/null || true)"

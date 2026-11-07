@@ -15,7 +15,7 @@ HELPERS="/usr/local/libexec/tomos-sccp"
 log() { printf '\n[%s] %s\n' "$PROJECT" "$*"; }
 die() { printf '\n[%s] ERROR: %s\n' "$PROJECT" "$*" >&2; exit 1; }
 
-[[ $EUID -eq 0 ]] || die "Run as root (for example: curl -fsSL $REPO_RAW/install.sh | sudo bash)."
+[[ $EUID -eq 0 ]] || die "Run as root: curl -fsSL $REPO_RAW/install.sh | sudo bash"
 command -v apt-get >/dev/null 2>&1 || die "This installer requires Debian 12 with APT."
 [[ -r /etc/os-release ]] || die "Cannot identify the operating system."
 # shellcheck disable=SC1091
@@ -30,7 +30,6 @@ git check-ref-format --branch "$UPSTREAM_REF" >/dev/null 2>&1 || die "Invalid up
 ASTERISK_VERSION="$(asterisk -rx 'core show version' 2>/dev/null | sed -nE 's/^Asterisk ([0-9]+)\..*/\1/p' | head -n1)"
 [[ -n "$ASTERISK_VERSION" ]] || die "Could not read the running Asterisk version."
 (( ASTERISK_VERSION >= 18 && ASTERISK_VERSION <= 23 )) || die "Asterisk $ASTERISK_VERSION is outside the supported major range (18–23). No changes made."
-
 MODULE_DIR="$(asterisk -rx 'core show settings' 2>/dev/null | sed -nE 's/^[[:space:]]*Module directory:[[:space:]]*(.*)$/\1/p' | head -n1)"
 [[ -n "$MODULE_DIR" && -d "$MODULE_DIR" ]] || die "Could not determine Asterisk's active module directory."
 [[ -f /usr/include/asterisk.h && -f /usr/include/asterisk/module.h ]] || die "Matching FreePBX/Sangoma Asterisk development headers are missing. Install the vendor-matched Asterisk $ASTERISK_VERSION development package; generic Debian headers may not match your PBX."
@@ -44,7 +43,6 @@ install -d -m 0755 "$WORKDIR" "$BACKUP_DIR" "$HELPERS"
 curl -fsSL "$REPO_RAW/scripts/manage-modules-conf.py" -o "$HELPERS/manage-modules-conf.py"
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-doctor.sh" -o "$HELPERS/tomos-sccp-doctor.sh"
 chmod 0755 "$HELPERS/tomos-sccp-doctor.sh"
-
 [[ ! -f "$MODULE_DIR/chan_sccp.so" ]] || cp -a "$MODULE_DIR/chan_sccp.so" "$BACKUP_DIR/chan_sccp.so.previous"
 [[ ! -f "$MODULES_CONF" ]] || cp -a "$MODULES_CONF" "$BACKUP_DIR/modules.conf.original"
 
@@ -56,7 +54,6 @@ else
   rm -rf "$WORKDIR/chan-sccp"
   git clone --depth=1 --branch "$UPSTREAM_REF" "$UPSTREAM_URL" "$WORKDIR/chan-sccp"
 fi
-
 cd "$WORKDIR/chan-sccp"
 [[ -x ./configure ]] || die "Upstream configure script is missing."
 log "Building against the installed Asterisk headers."
@@ -75,13 +72,25 @@ for dependency in app_voicemail.so bridge_simple.so bridge_native_rtp.so bridge_
   fi
 done
 
-log "Installing the staged channel driver."
-install -o asterisk -g asterisk -m 0644 "$BUILT_MODULE" "$MODULE_DIR/chan_sccp.so"
-python3 "$HELPERS/manage-modules-conf.py" "$MODULES_CONF"
-
+# Unload the old driver before replacing its file. If it is busy, stop here
+# with the existing module file and FreePBX configuration untouched.
 if asterisk -rx 'module show like chan_sccp.so' 2>/dev/null | grep -Eq 'chan_sccp\.so[[:space:]]'; then
-  asterisk -rx 'module unload chan_sccp.so' >/dev/null 2>&1 || die "Existing chan_sccp module is busy. Restart Asterisk during a maintenance window."
+  asterisk -rx 'module unload chan_sccp.so' >/dev/null 2>&1 || die "Existing chan_sccp module is busy. End active calls or schedule a maintenance restart; no file was replaced."
 fi
+
+log "Installing the staged channel driver."
+if ! install -o asterisk -g asterisk -m 0644 "$BUILT_MODULE" "$MODULE_DIR/chan_sccp.so"; then
+  [[ ! -f "$BACKUP_DIR/chan_sccp.so.previous" ]] || asterisk -rx 'module load chan_sccp.so' >/dev/null 2>&1 || true
+  die "Could not install the new module. The previous module file was retained where possible."
+fi
+if ! python3 "$HELPERS/manage-modules-conf.py" "$MODULES_CONF"; then
+  if [[ -f "$BACKUP_DIR/chan_sccp.so.previous" ]]; then
+    cp -a "$BACKUP_DIR/chan_sccp.so.previous" "$MODULE_DIR/chan_sccp.so"
+    asterisk -rx 'module load chan_sccp.so' >/dev/null 2>&1 || true
+  fi
+  die "Could not safely update modules.conf. Previous driver was restored where available."
+fi
+
 asterisk -rx 'module unload chan_skinny.so' >/dev/null 2>&1 || true
 if ! asterisk -rx 'module load chan_sccp.so' >/dev/null 2>&1; then
   if [[ -f "$BACKUP_DIR/chan_sccp.so.previous" ]]; then

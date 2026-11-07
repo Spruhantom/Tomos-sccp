@@ -25,7 +25,7 @@ Review the installer before running it. On a supported FreePBX 17 / Debian 12 ho
 curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install-stack.sh | sudo bash
 ```
 
-The default full-stack command installs the channel driver and TomOS support assets. It does **not** install a GUI manager by default because compatibility between the optional manager fork and the original upstream driver still needs integration testing.
+The default full-stack command installs the channel driver, TomOS support assets and the FreePBX SCCP Manager GUI module. After installation, open **Admin → SCCP Connectivity** in the FreePBX web interface to manage server settings and Cisco phones. The GUI module is the Nortien FreePBX 17 fork; its declared FreePBX 17 support and driver-version check are upstream claims, but this integration has not yet been exercised on a live TomOS/FreePBX PBX. Back up the PBX and validate the module on a staging system before production use. To install only the driver and CLI tools, explicitly opt out with `TOMOS_SCCP_INSTALL_MANAGER=0`.
 
 Driver-only installation:
 
@@ -221,9 +221,9 @@ sudo journalctl -u asterisk -n 100
 
 TomOS manages only its marked block in `/etc/asterisk/modules.conf`, excluding Asterisk's competing `chan_skinny.so` and loading `chan_sccp.so`. FreePBX may regenerate this file, so verify module loading after applying configuration and after upgrades.
 
-## Optional GUI manager
+## FreePBX web GUI manager
 
-An optional manager installer remains available separately, but it currently targets the Nortien SCCP Manager fork. It is **not enabled by default** and must not be treated as verified against the original `chan-sccp/chan-sccp` driver until the database, feature flags, provisioning and FreePBX 17 workflows have been tested together.
+The default stack installer deploys the Nortien SCCP Manager FreePBX module from its `stable` branch. It provides the SCCP Connectivity menu for server configuration, system parameters and phone management. The module has its own database and provisioning implementation; it is not yet connected to the separate TomOS SQLite CLI inventory. Its installer checks the running chan-sccp version and may migrate SCCP configuration/database structures, so take a verified backup first. Live compatibility with the exact upstream driver build used by TomOS, the site's FreePBX configuration, and physical Cisco phones remains to be validated. To skip the GUI module, run `TOMOS_SCCP_INSTALL_MANAGER=0` with `install-stack.sh`, or run `install.sh` directly for driver-only installation.
 
 ## Tests
 

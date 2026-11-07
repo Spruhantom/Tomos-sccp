@@ -54,7 +54,8 @@ with tempfile.TemporaryDirectory() as temporary:
     rendered = run(database, "render", "--output-dir", output)
     assert "Managed inventory: 1 phone(s)." in rendered.stdout
     hardware = (output / "sccp_hardware.conf").read_text(encoding="utf-8")
-    assert "[SEP001122334455]" in hardware\n    assert "description = Main reception" in hardware
+    assert "[SEP001122334455]" in hardware
+    assert "description = Main reception" in hardware
     assert "devicetype = 7960" in hardware
     run(database, "render", "--output-dir", output, expected=2)
 

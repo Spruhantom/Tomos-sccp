@@ -345,8 +345,8 @@ def update_device(db, args):
             if button is None:
                 db.execute("INSERT INTO device_buttons(mac,position,button_type,line_extension,button_label) VALUES (?,1,'line',?,?)", (mac, values["extension"], values["extension"]))
             elif button["line_extension"] != row["extension"]:
-                db.execute("UPDATE device_buttons SET line_extension=? WHERE mac=? AND position=1",
-                           (values["extension"], mac))
+                db.execute("UPDATE device_buttons SET line_extension=?,button_label=? WHERE mac=? AND position=1",
+                           (values["extension"], values["extension"], mac))
             db.execute("UPDATE lines SET label=?,description=?,context=?,cid_name=?,cid_num=?,updated_at=? WHERE extension=?",
                        (values["label"], values["description"], values["context"], values["cid_name"],
                         values["cid_num"], values["updated_at"], values["extension"]))
@@ -487,6 +487,10 @@ def add_device_button(db, args):
         raise ManagerError(f"button position must be between 1 and {min(count + 1, 32)}; maximum 32 buttons")
     if position == 1 and button["button_type"] != "line":
         raise ManagerError("the first configured button must be a line button")
+    if button["button_type"] == "line" and any(
+            item["button_type"] == "line" and item["line_extension"] == button["line_extension"]
+            for item in existing):
+        raise ManagerError("that line extension is already assigned to this phone")
     existing.insert(position - 1, button)
     with db:
         if button["button_type"] == "line":

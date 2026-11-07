@@ -97,7 +97,7 @@ def main():
     parser.add_argument("--mac", required=True, help="12-hex-digit Cisco phone MAC address")
     parser.add_argument("--pbx-address", required=True, help="phone-reachable PBX IPv4 address")
     parser.add_argument("--port", type=int, default=2000)
-    parser.add_argument("--ntp-server", help="optional NTP server IPv4 address")\n    parser.add_argument("--ssh-user", help="phone SSH username (required to replace upstream cisco/cisco defaults)")\n    parser.add_argument("--ssh-password", help="phone SSH password (required to replace upstream cisco/cisco defaults)")
+    parser.add_argument("--ntp-server", help="optional NTP server IPv4 address")\n    parser.add_argument("--ssh-user", help="optional phone SSH username; pair with --ssh-password-file")\n    parser.add_argument("--ssh-password-file", help="0600 file containing the phone SSH password")\n    parser.add_argument("--ssh-password-file", help="0600 file containing the phone SSH password; omit to remove upstream sample credentials")
     parser.add_argument("--template-dir", default="/usr/share/tomos-sccp/tftp-templates")
     parser.add_argument("--output", required=True, help="output filename or existing TFTP root with --deploy")
     parser.add_argument("--deploy", action="store_true")
@@ -105,7 +105,7 @@ def main():
     args = parser.parse_args()
     try:
         template = pathlib.Path(args.template_dir) / f"SEP0000000000.cnf.xml_{args.model}_template"
-        content = render(template, args.mac, args.pbx_address, args.port, args.ntp_server, args.ssh_user, args.ssh_password)
+        content = render(template, args.mac, args.pbx_address, args.port, args.ntp_server, args.ssh_user, args.ssh_password_file)
         output = pathlib.Path(args.output)
         if args.deploy:
             if not output.is_dir():
@@ -124,4 +124,26 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main())    if bool(ssh_user) != bool(ssh_password):
+        raise SepConfigError("--ssh-user and --ssh-password-file must be supplied together")
+    ssh_user_element = root.find("sshUserId")
+    ssh_password_element = root.find("sshPassword")
+    if ssh_user_element is not None and ssh_password_element is not None:
+        if ssh_user:
+            if any(char in ssh_user for char in "\\r\\n<>\\x00"):
+                raise SepConfigError("SSH username contains characters unsafe for XML text")
+            password_file = pathlib.Path(ssh_password)
+            if not password_file.is_file() or password_file.is_symlink():
+                raise SepConfigError("SSH password file must be an existing regular non-symlink file")
+            if password_file.stat().st_mode & 0o077:
+                raise SepConfigError("SSH password file permissions must be 0600 or stricter")
+            password = password_file.read_text(encoding="utf-8").rstrip("\\r\\n")
+            if not password or any(char in password for char in "\\r\\n<>\\x00"):
+                raise SepConfigError("SSH password file must contain one non-empty XML-safe line")
+            ssh_user_element.text = ssh_user
+            ssh_password_element.text = password
+        else:
+            # Never ship the upstream cisco/cisco example credentials.
+            root.remove(ssh_user_element)
+            root.remove(ssh_password_element)
+

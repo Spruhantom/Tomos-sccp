@@ -44,7 +44,7 @@ curl -fsSL "$REPO_RAW/scripts/tomos-sccp-doctor.sh" -o "$HELPERS/tomos-sccp-doct
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-install-tftp-templates.sh" -o "$HELPERS/tomos-sccp-install-tftp-templates.sh"
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-provision.py" -o "$HELPERS/tomos-sccp-provision.py"
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-tftp.py" -o "$HELPERS/tomos-sccp-tftp.py"
-chmod 0755 "$HELPERS/tomos-sccp-doctor.sh" "$HELPERS/tomos-sccp-install-tftp-templates.sh" "$HELPERS/tomos-sccp-provision.py"
+chmod 0755 "$HELPERS/tomos-sccp-doctor.sh" "$HELPERS/tomos-sccp-install-tftp-templates.sh" "$HELPERS/tomos-sccp-provision.py" "$HELPERS/tomos-sccp-tftp.py"
 [[ ! -f "$MODULE_DIR/chan_sccp.so" ]] || cp -a "$MODULE_DIR/chan_sccp.so" "$BACKUP_DIR/chan_sccp.so.previous"
 [[ ! -f "$MODULES_CONF" ]] || cp -a "$MODULES_CONF" "$BACKUP_DIR/modules.conf.original"
 

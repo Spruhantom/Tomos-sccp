@@ -87,6 +87,22 @@ def connect_database(path):
                 REFERENCES template_families(vendor_slug, slug)
         );
     """)
+        CREATE TABLE IF NOT EXISTS lines (
+            extension TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            description TEXT NOT NULL,
+            context TEXT NOT NULL,
+            cid_name TEXT NOT NULL,
+            cid_num TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS device_buttons (
+            mac TEXT NOT NULL REFERENCES devices(mac) ON DELETE CASCADE,
+            position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 32),
+            button_type TEXT NOT NULL CHECK(button_type IN ('line')),
+            line_extension TEXT NOT NULL REFERENCES lines(extension),
+            PRIMARY KEY(mac, position)
+        );
     connection.execute(
         "INSERT OR IGNORE INTO vendors(slug, display_name, protocol) VALUES (?, ?, ?)",
         ("cisco", "Cisco", "SCCP")
@@ -102,6 +118,19 @@ def connect_database(path):
     columns = {row["name"] for row in connection.execute("PRAGMA table_info(devices)")}
     if "dhcp_address" not in columns:
         connection.execute("ALTER TABLE devices ADD COLUMN dhcp_address TEXT")
+    # Migrate legacy single-line devices into normalized line and button records.
+    for row in connection.execute("SELECT * FROM devices").fetchall():
+        connection.execute(
+            """INSERT OR IGNORE INTO lines
+               (extension,label,description,context,cid_name,cid_num,updated_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (row["extension"], row["label"], row["description"], row["context"],
+             row["cid_name"], row["cid_num"], row["updated_at"])
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO device_buttons(mac,position,button_type,line_extension) VALUES (?,1,'line',?)",
+            (row["mac"], row["extension"])
+        )
     connection.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS devices_dhcp_address_unique "
         "ON devices(dhcp_address) WHERE dhcp_address IS NOT NULL"
@@ -223,6 +252,10 @@ def add_device(db, args):
             )
     except sqlite3.IntegrityError as exc:
         raise ManagerError(f"could not add device (duplicate MAC or unknown vendor/template): {exc}") from exc
+    with db:
+        db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
+                   (extension, label, description, context, cid_name, cid_num, now))
+        db.execute("INSERT OR IGNORE INTO device_buttons VALUES (?,1,'line',?)", (mac, extension))
     print(f"Added {vendor} {model} phone SEP{mac} on extension {extension}.")
 
 
@@ -284,7 +317,11 @@ def list_devices(db, as_json=False):
            FROM devices ORDER BY mac"""
     ).fetchall()
     if as_json:
-        print(json.dumps([dict(row) for row in rows], ensure_ascii=True))
+        records = [dict(row) for row in rows]
+        for record in records:
+            record["buttons"] = get_device_buttons(db, record["mac"])
+            record["button_extensions"] = ",".join(item["line_extension"] for item in record["buttons"])
+        print(json.dumps(records, ensure_ascii=True))
         return
     if not rows:
         print("No phones registered yet.")
@@ -301,7 +338,10 @@ def show_device(db, mac, as_json=False):
     if row is None:
         raise ManagerError(f"phone not found: {mac}")
     if as_json:
-        print(json.dumps(dict(row), ensure_ascii=True))
+        record = dict(row)
+        record["buttons"] = get_device_buttons(db, mac)
+        record["button_extensions"] = ",".join(item["line_extension"] for item in record["buttons"])
+        print(json.dumps(record, ensure_ascii=True))
         return
     for key in ("mac", "vendor_slug", "model_number", "template_family", "description",
                 "extension", "label", "cid_name", "cid_num", "context", "dhcp_address",
@@ -309,12 +349,88 @@ def show_device(db, mac, as_json=False):
         print(f"{key}: {row[key]}")
 
 
+
+def get_device_buttons(db, mac):
+    return [dict(row) for row in db.execute(
+        "SELECT position,button_type,line_extension FROM device_buttons WHERE mac=? ORDER BY position",
+        (mac,)
+    ).fetchall()]
+
+
+def set_device_buttons(db, mac, raw_extensions):
+    mac = mac.replace(":", "").replace("-", "").upper()
+    if not MAC_RE.fullmatch(mac):
+        raise ManagerError("--mac must contain exactly 12 hexadecimal characters")
+    device = db.execute("SELECT * FROM devices WHERE mac=?", (mac,)).fetchone()
+    if device is None:
+        raise ManagerError(f"phone not found: {mac}")
+    extensions = [value.strip() for value in raw_extensions.split(",") if value.strip()]
+    if not extensions or len(extensions) > 32 or len(set(extensions)) != len(extensions):
+        raise ManagerError("provide 1–32 unique comma-separated line extensions")
+    if any(not EXT_RE.fullmatch(value) for value in extensions):
+        raise ManagerError("button extensions must contain 1–20 digits")
+    now = datetime.now(timezone.utc).isoformat()
+    with db:
+        for extension in extensions:
+            db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
+                       (extension, extension, extension, device["context"], extension, extension, now))
+        db.execute("DELETE FROM device_buttons WHERE mac=?", (mac,))
+        for position, extension in enumerate(extensions, 1):
+            db.execute("INSERT INTO device_buttons VALUES (?,?,'line',?)",
+                       (mac, position, extension))
+        db.execute("UPDATE devices SET extension=?,updated_at=? WHERE mac=?",
+                   (extensions[0], now, mac))
+    print(f"Saved {len(extensions)} line button(s) for SEP{mac}.")
+
+
+def preview_inventory(db):
+    import contextlib
+    import io
+    with tempfile.TemporaryDirectory(prefix="tomos-sccp-preview-") as temporary:
+        captured = io.StringIO()
+        with contextlib.redirect_stdout(captured):
+            render_inventory(db, temporary, False)
+        root = pathlib.Path(temporary)
+        return {"files": {name: (root / name).read_text(encoding="utf-8")
+                          for name in ("sccp_hardware.conf", "sccp_extensions.conf")},
+                "summary": captured.getvalue().strip(),
+                "device_count": db.execute("SELECT COUNT(*) FROM devices").fetchone()[0],
+                "button_count": db.execute("SELECT COUNT(*) FROM device_buttons").fetchone()[0]}
+
+
+def live_device_status(db, asterisk_bin):
+    result = subprocess.run([asterisk_bin, "-rx", "sccp show devices"],
+                            text=True, capture_output=True, check=False, timeout=10)
+    output = (result.stdout + result.stderr).strip()
+    if result.returncode:
+        raise ManagerError("Asterisk SCCP status command failed: " + output)
+    records = []
+    for device in db.execute("SELECT mac,extension,description FROM devices ORDER BY mac"):
+        line = next((item for item in output.splitlines()
+                     if device["mac"].lower() in item.lower()
+                     or ("SEP" + device["mac"]).lower() in item.lower()), None)
+        if line is None:
+            state = "not-listed"
+        elif re.search(r"\b(unregistered|offline|disconnected)\b", line, re.I):
+            state = "unregistered"
+        elif re.search(r"\b(registered|online|onhook|offhook)\b", line, re.I):
+            state = "registered"
+        else:
+            state = "unknown"
+        records.append({"mac": device["mac"], "extension": device["extension"],
+                        "description": device["description"], "state": state, "detail": line or ""})
+    return {"source": "asterisk -rx 'sccp show devices'", "devices": records, "raw": output,
+            "note": "Unknown means the Asterisk output did not expose a recognised state."}
+
+
 def remove_device(db, mac):
     mac = mac.replace(":", "").replace("-", "").upper()
     if not MAC_RE.fullmatch(mac):
         raise ManagerError("--mac must contain exactly 12 hexadecimal characters")
     with db:
+        db.execute("DELETE FROM device_buttons WHERE mac = ?", (mac,))
         cursor = db.execute("DELETE FROM devices WHERE mac = ?", (mac,))
+        db.execute("DELETE FROM lines WHERE extension NOT IN (SELECT line_extension FROM device_buttons)")
     if cursor.rowcount != 1:
         raise ManagerError(f"phone not found: {mac}")
     print(f"Removed phone SEP{mac} from the inventory. Existing generated files were not changed.")
@@ -608,6 +724,14 @@ def main():
     remove.add_argument("--confirm", action="store_true",
                         help="confirm removing the device from the inventory")
 
+    buttons = device_sub.add_parser("buttons", help="configure line buttons for a phone")
+    buttons.add_argument("--mac", required=True)
+    buttons.add_argument("--extensions", required=True, help="comma-separated line extensions in button order")
+
+    preview = sub.add_parser("preview", help="create a temporary provisioning preview")
+    status = sub.add_parser("status", help="read live SCCP handset state from Asterisk")
+    status.add_argument("--asterisk-bin", default=os.environ.get("ASTERISK_BIN", "/usr/sbin/asterisk"))
+
     render = sub.add_parser("render", help="render managed inventory to staging include files")
     render.add_argument("--output-dir", required=True)
     render.add_argument("--force", action="store_true")
@@ -650,6 +774,8 @@ def main():
                 add_device(db, args)
             elif args.action == "update":
                 update_device(db, args)
+            elif args.action == "buttons":
+                set_device_buttons(db, args.mac, args.extensions)
             elif args.action == "list":
                 list_devices(db, args.json)
             elif args.action == "show":
@@ -658,6 +784,10 @@ def main():
                 if not args.confirm:
                     raise ManagerError("removal requires --confirm")
                 remove_device(db, args.mac)
+        elif args.command == "preview":
+            print(json.dumps(preview_inventory(db), ensure_ascii=True))
+        elif args.command == "status":
+            print(json.dumps(live_device_status(db, args.asterisk_bin), ensure_ascii=True))
         elif args.command == "render":
             render_inventory(db, args.output_dir, args.force)
         elif args.command == "dhcp-export":

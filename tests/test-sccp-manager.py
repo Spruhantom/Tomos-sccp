@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory() as temporary:
                 "--label", "Front desk", "--cid-name", "Front Desk")
     assert "Added cisco 7960" in run(database, *add_args).stdout
     assert "Front desk" in run(database, "device", "list").stdout
-    details = run(database, "device", "show", "--mac", "001122334455").stdout
+    run(database, "device", "update", "--mac", "001122334455", "--description", "Main reception")\n    details = run(database, "device", "show", "--mac", "001122334455").stdout\n    assert "description: Main reception" in details\n    run(database, "device", "update", "--mac", "001122334455", "--context", "bad\\n[general]", expected=2)
     assert "template_family: 7940_7960" in details
     assert "extension: 1000" in details
 
@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory() as temporary:
     rendered = run(database, "render", "--output-dir", output)
     assert "Managed inventory: 1 phone(s)." in rendered.stdout
     hardware = (output / "sccp_hardware.conf").read_text(encoding="utf-8")
-    assert "[SEP001122334455]" in hardware
+    assert "[SEP001122334455]" in hardware\n    assert "description = Main reception" in hardware
     assert "devicetype = 7960" in hardware
     run(database, "render", "--output-dir", output, expected=2)
 

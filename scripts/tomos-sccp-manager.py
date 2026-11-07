@@ -86,7 +86,6 @@ def connect_database(path):
             FOREIGN KEY (vendor_slug, template_family)
                 REFERENCES template_families(vendor_slug, slug)
         );
-    """)
         CREATE TABLE IF NOT EXISTS lines (
             extension TEXT PRIMARY KEY,
             label TEXT NOT NULL,
@@ -103,6 +102,7 @@ def connect_database(path):
             line_extension TEXT NOT NULL REFERENCES lines(extension),
             PRIMARY KEY(mac, position)
         );
+    """)
     connection.execute(
         "INSERT OR IGNORE INTO vendors(slug, display_name, protocol) VALUES (?, ?, ?)",
         ("cisco", "Cisco", "SCCP")

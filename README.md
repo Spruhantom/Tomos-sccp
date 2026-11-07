@@ -21,7 +21,7 @@ TomOS SCCP is an installer and operations helper for the FreePBX 17-tested [chan
 Review the installer before running it. On a supported FreePBX 17 host:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install-stack.sh | sudo bash
 ```
 
 To choose an upstream branch:

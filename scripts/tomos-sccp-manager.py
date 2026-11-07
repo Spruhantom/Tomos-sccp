@@ -455,7 +455,7 @@ def _validate_button(button_type, label=None, option1=None, option2=None, line_e
             raise ManagerError("call-forward feature requires a dialable destination number")
         if feature in ("parkinglot", "devstate") and not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", parameter):
             raise ManagerError(f"{feature} requires a valid identifier")
-        option1 = feature
+        option1 = "DND" if feature == "dnd" else feature
         option2 = parameter or None
     return {"button_type": button_type, "button_label": label,
             "line_extension": line_extension if button_type == "line" else None,

@@ -266,6 +266,7 @@ def add_device(db, args):
     family = args.template_family
     if family not in TEMPLATE_FAMILIES:
         raise ManagerError(f"unsupported Cisco template family: {family}")
+    validate_model_template(model, family)
     extension = args.extension
     if not EXT_RE.fullmatch(extension):
         raise ManagerError("--extension must contain 1–20 digits")

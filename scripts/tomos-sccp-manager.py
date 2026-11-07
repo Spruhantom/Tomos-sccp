@@ -296,6 +296,9 @@ def update_device(db, args):
     values["updated_at"] = datetime.now(timezone.utc).isoformat()
     try:
         with db:
+            db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
+                       (values["extension"], values["label"], values["description"],
+                        values["context"], values["cid_name"], values["cid_num"], values["updated_at"]))
             db.execute(
                 """UPDATE devices SET vendor_slug = :vendor_slug, model_number = :model_number,
                    template_family = :template_family, extension = :extension,
@@ -305,6 +308,16 @@ def update_device(db, args):
                    WHERE mac = :mac""",
                 {**values, "mac": mac}
             )
+            button = db.execute("SELECT line_extension FROM device_buttons WHERE mac=? AND position=1",
+                                (mac,)).fetchone()
+            if button is None:
+                db.execute("INSERT INTO device_buttons VALUES (?,1,'line',?)", (mac, values["extension"]))
+            elif button["line_extension"] != row["extension"]:
+                db.execute("UPDATE device_buttons SET line_extension=? WHERE mac=? AND position=1",
+                           (values["extension"], mac))
+            db.execute("UPDATE lines SET label=?,description=?,context=?,cid_name=?,cid_num=?,updated_at=? WHERE extension=?",
+                       (values["label"], values["description"], values["context"], values["cid_name"],
+                        values["cid_num"], values["updated_at"], values["extension"]))
     except sqlite3.IntegrityError as exc:
         raise ManagerError(f"could not update phone: {exc}") from exc
     print(f"Updated phone SEP{mac}.")

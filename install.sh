@@ -45,9 +45,10 @@ curl -fsSL "$REPO_RAW/scripts/tomos-sccp-install-tftp-templates.sh" -o "$HELPERS
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-provision.py" -o "$HELPERS/tomos-sccp-provision.py"
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-tftp.py" -o "$HELPERS/tomos-sccp-tftp.py"
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-sep.py" -o "$HELPERS/tomos-sccp-sep.py"
-curl -fsSL "$REPO_RAW/scripts/tomos-sccp-manager.py" -o "$HELPERS/tomos-sccp-manager.py" "$HELPERS/tomos-sccp-tftp-check.py"
+curl -fsSL "$REPO_RAW/scripts/tomos-sccp-manager.py" -o "$HELPERS/tomos-sccp-manager.py"
 curl -fsSL "$REPO_RAW/scripts/tomos-sccp-tftp-check.py" -o "$HELPERS/tomos-sccp-tftp-check.py"
-chmod 0755 "$HELPERS/tomos-sccp-doctor.sh" "$HELPERS/tomos-sccp-install-tftp-templates.sh" "$HELPERS/tomos-sccp-provision.py" "$HELPERS/tomos-sccp-tftp.py" "$HELPERS/tomos-sccp-sep.py" "$HELPERS/tomos-sccp-manager.py"
+curl -fsSL "$REPO_RAW/scripts/tomos-sccp-tftp-check.py" -o "$HELPERS/tomos-sccp-tftp-check.py"
+chmod 0755 "$HELPERS/tomos-sccp-doctor.sh" "$HELPERS/tomos-sccp-install-tftp-templates.sh" "$HELPERS/tomos-sccp-provision.py" "$HELPERS/tomos-sccp-tftp.py" "$HELPERS/tomos-sccp-sep.py" "$HELPERS/tomos-sccp-manager.py" "$HELPERS/tomos-sccp-tftp-check.py"
 [[ ! -f "$MODULE_DIR/chan_sccp.so" ]] || cp -a "$MODULE_DIR/chan_sccp.so" "$BACKUP_DIR/chan_sccp.so.previous"
 [[ ! -f "$MODULES_CONF" ]] || cp -a "$MODULES_CONF" "$BACKUP_DIR/modules.conf.original"
 

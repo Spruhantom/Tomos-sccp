@@ -75,7 +75,7 @@ TEMPLATE_COUNT=0
 while IFS= read -r -d '' template; do
   install -m 0644 "$template" "/usr/share/tomos-sccp/tftp-templates/$(basename "$template")"
   TEMPLATE_COUNT=$((TEMPLATE_COUNT + 1))
-done < <(find conf/tftp -maxdepth 1 -type f \\( -name '*_template' -o -name 'XMLDefault*.xml' -o -name 'WLANDefault.xml' -o -name 'properties.xml' \\) -print0)
+done < <(find conf/tftp -maxdepth 1 -type f \( -name '*_template' -o -name 'XMLDefault*.xml' -o -name 'WLANDefault.xml' -o -name 'properties.xml' \) -print0)
 (( TEMPLATE_COUNT > 0 )) || die "Upstream Cisco TFTP templates were not found."
 
 for dependency in app_voicemail.so bridge_simple.so bridge_native_rtp.so bridge_softmix.so bridge_holding.so res_stasis.so res_stasis_device_state.so; do

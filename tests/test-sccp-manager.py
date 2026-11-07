@@ -28,7 +28,8 @@ with tempfile.TemporaryDirectory() as temporary:
     add_args = ("device", "add", "--mac", "00:11:22:33:44:55", "--vendor", "cisco",
                 "--model", "7960", "--template-family", "7940_7960",
                 "--extension", "1000", "--description", "Front desk",
-                "--label", "Front desk", "--cid-name", "Front Desk")
+                "--label", "Front desk", "--cid-name", "Front Desk",
+                "--dhcp-address", "192.168.10.50")
     assert "Added cisco 7960" in run(database, *add_args).stdout
     assert "Front desk" in run(database, "device", "list").stdout
     run(database, "device", "update", "--mac", "001122334455", "--description", "Main reception")
@@ -37,6 +38,31 @@ with tempfile.TemporaryDirectory() as temporary:
     run(database, "device", "update", "--mac", "001122334455", "--context", "bad\\n[general]", expected=2)
     assert "template_family: 7940_7960" in details
     assert "extension: 1000" in details
+
+    # Reservation exports are generated only on request and never modify DHCP.
+    dnsmasq_export = root / "exports" / "tomos-phones.conf"
+    exported = run(database, "dhcp-export", "--format", "dnsmasq",
+                   "--output", dnsmasq_export)
+    assert "active DHCP was not changed" in exported.stdout
+    dnsmasq_text = dnsmasq_export.read_text(encoding="utf-8")
+    assert "dhcp-host=00:11:22:33:44:55,192.168.10.50" in dnsmasq_text
+    run(database, "dhcp-export", "--format", "dnsmasq", "--output", dnsmasq_export, expected=2)
+    isc_export = root / "exports" / "tomos-phones-isc.conf"
+    run(database, "dhcp-export", "--format", "isc-dhcpd", "--output", isc_export)
+    isc_text = isc_export.read_text(encoding="utf-8")
+    assert "host tomos-phone-001122334455" in isc_text
+    assert "hardware ethernet 00:11:22:33:44:55;" in isc_text
+    assert "fixed-address 192.168.10.50;" in isc_text
+    run(database, "device", "update", "--mac", "001122334455",
+        "--dhcp-address", "not-an-ip", expected=2)
+    run(database, "device", "add", "--mac", "001122334466", "--model", "7960",
+        "--template-family", "7940_7960", "--extension", "1001",
+        "--description", "Duplicate IP", "--dhcp-address", "192.168.10.50", expected=2)
+    backup_target = root / "exports" / "overwrite.conf"
+    backup_target.write_text("existing config\n", encoding="utf-8")
+    run(database, "dhcp-export", "--format", "dnsmasq", "--output", backup_target,
+        "--force")
+    assert pathlib.Path(str(backup_target) + ".tomos-backup").read_text(encoding="utf-8") == "existing config\n"
 
     # Duplicate MACs and unsupported vendor/template families are rejected.
     run(database, *add_args, expected=2)

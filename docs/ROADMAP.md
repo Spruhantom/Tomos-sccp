@@ -15,13 +15,11 @@ This repository currently provides the SCCP driver build/install integration and
 - [ ] Verify upgrade and rollback with live calls drained
 
 ## Milestone 2 — Cisco phone provisioning
-- [ ] Define supported device models and firmware matrix
-- [ ] Create safe device/line configuration schema
-- [ ] Validate MAC addresses, extension references and secrets
-- [ ] Generate SEP<MAC>.cnf.xml using upstream-supported templates
-- [ ] Configure TFTP service without replacing an existing TFTP setup
-- [ ] Provide provisioning preview, validation and rollback
-- [ ] Test registration and calls with physical Cisco handsets
+- [x] Integrate the upstream SCCP Manager GUI for device, line, button, model and TFTP provisioning
+- [x] Keep the GPL manager source unmodified and install it from its own upstream repository
+- [ ] Validate supported device models and firmware against the target Cisco handsets
+- [ ] Verify TFTP, DHCP option 150 and generated SEP<MAC>.cnf.xml on a clean FreePBX 17 host
+- [ ] Test registration, inbound/outbound calls, BLF and provisioning after reboot with physical Cisco handsets
 
 ## Milestone 3 — FreePBX integration
 - [x] Identify the FreePBX 17-tested SCCP Manager companion (nortien/sccp_manager 17.1.1)

@@ -487,13 +487,13 @@ def add_device_button(db, args):
         raise ManagerError(f"button position must be between 1 and {min(count + 1, 32)}; maximum 32 buttons")
     if position == 1 and button["button_type"] != "line":
         raise ManagerError("the first configured button must be a line button")
-    if button["button_type"] == "line":
-        now = datetime.now(timezone.utc).isoformat()
-        ext = button["line_extension"]
-        db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
-                   (ext, button["button_label"], button["button_label"], "from-internal-xfer", ext, ext, now))
     existing.insert(position - 1, button)
     with db:
+        if button["button_type"] == "line":
+            now = datetime.now(timezone.utc).isoformat()
+            ext = button["line_extension"]
+            db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
+                       (ext, button["button_label"], button["button_label"], "from-internal-xfer", ext, ext, now))
         db.execute("DELETE FROM device_buttons WHERE mac=?", (mac,))
         for index, item in enumerate(existing, 1):
             _insert_button(db, mac, index, item)

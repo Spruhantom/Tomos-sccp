@@ -31,7 +31,10 @@ with tempfile.TemporaryDirectory() as temporary:
                 "--label", "Front desk", "--cid-name", "Front Desk")
     assert "Added cisco 7960" in run(database, *add_args).stdout
     assert "Front desk" in run(database, "device", "list").stdout
-    run(database, "device", "update", "--mac", "001122334455", "--description", "Main reception")\n    details = run(database, "device", "show", "--mac", "001122334455").stdout\n    assert "description: Main reception" in details\n    run(database, "device", "update", "--mac", "001122334455", "--context", "bad\\n[general]", expected=2)
+    run(database, "device", "update", "--mac", "001122334455", "--description", "Main reception")
+    details = run(database, "device", "show", "--mac", "001122334455").stdout
+    assert "description: Main reception" in details
+    run(database, "device", "update", "--mac", "001122334455", "--context", "bad\\n[general]", expected=2)
     assert "template_family: 7940_7960" in details
     assert "extension: 1000" in details
 

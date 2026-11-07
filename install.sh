@@ -133,4 +133,4 @@ chown asterisk:asterisk /var/lib/asterisk/tomos-sccp-install.info
 log "Installation complete. Driver loaded; no phone credentials or extension configuration were changed."
 printf '\nDiagnostics: sudo %s/tomos-sccp-doctor.sh\n' "$HELPERS"
 printf 'Backup: %s\n' "$BACKUP_DIR"
-printf 'Next: configure /etc/asterisk/chan_sccp.conf and verify FreePBX Admin → Asterisk Modules.\n'
+printf 'Next: configure /etc/asterisk/sccp.conf and verify FreePBX Admin → Asterisk Modules.\n'

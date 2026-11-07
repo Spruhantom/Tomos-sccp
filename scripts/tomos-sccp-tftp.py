@@ -73,7 +73,7 @@ def write_safe(destination, content, force=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pbx-address", required=True, help="phone-reachable PBX IPv4/IPv6 address")
+    parser.add_argument("--pbx-address", required=True, help="phone-reachable PBX IPv4 address")
     parser.add_argument("--port", type=int, default=2000, help="SCCP TCP port (default: 2000)")
     parser.add_argument("--backup-pbx-address", help="optional secondary phone-reachable PBX address")
     parser.add_argument("--output", required=True, help="output file or TFTP-root/XMLDefault.cnf.xml")

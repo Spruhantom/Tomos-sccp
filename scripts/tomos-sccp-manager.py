@@ -336,6 +336,86 @@ def render_inventory(db, output_dir, force):
     print(f"Managed inventory: {len(rows)} phone(s).")
 
 
+
+def export_sep_configs(db, args):
+    """Render every inventory phone into a reviewed, non-live TFTP export."""
+    rows = db.execute(
+        "SELECT mac, vendor_slug, template_family FROM devices ORDER BY mac"
+    ).fetchall()
+    if not rows:
+        raise ManagerError("inventory is empty; add at least one phone before SEP export")
+    helper = pathlib.Path(__file__).with_name("tomos-sccp-sep.py")
+    if not helper.is_file():
+        raise ManagerError(f"existing Cisco SEP renderer is missing: {helper}")
+    template_dir = pathlib.Path(args.template_dir)
+    if not template_dir.is_dir():
+        raise ManagerError(f"Cisco template directory does not exist: {template_dir}")
+    destination = pathlib.Path(args.output_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    targets = [destination / f"SEP{row['mac']}.cnf.xml" for row in rows]
+    for target in targets:
+        if target.exists() and not args.force:
+            raise ManagerError(f"refusing to overwrite {target}; use --force to preserve backups")
+        backup = target.with_name(target.name + ".tomos-backup")
+        if target.exists() and backup.exists():
+            raise ManagerError(f"backup already exists: {backup}; move it before using --force")
+
+    import shutil
+    import xml.etree.ElementTree as ET
+    committed = []
+    backups = []
+    try:
+        with tempfile.TemporaryDirectory(prefix="tomos-sccp-sep-export-",
+                                         dir=str(destination)) as temporary:
+            staged = pathlib.Path(temporary)
+            for row, target in zip(rows, targets):
+                if row["vendor_slug"] != "cisco":
+                    raise ManagerError(f"unsupported SEP export vendor for {row['mac']}: {row['vendor_slug']}")
+                staged_file = staged / target.name
+                command = [
+                    sys.executable, str(helper),
+                    "--model", row["template_family"],
+                    "--mac", row["mac"],
+                    "--pbx-address", args.pbx_address,
+                    "--port", str(args.port),
+                    "--template-dir", str(template_dir),
+                    "--output", str(staged_file),
+                ]
+                if args.ntp_server:
+                    command.extend(["--ntp-server", args.ntp_server])
+                result = subprocess.run(command, text=True, capture_output=True, check=False)
+                if result.returncode:
+                    detail = result.stderr.strip() or result.stdout.strip() or "SEP renderer failed"
+                    raise ManagerError(f"could not render SEP{row['mac']}.cnf.xml: {detail}")
+                try:
+                    ET.parse(staged_file)
+                except (ET.ParseError, OSError) as exc:
+                    raise ManagerError(f"invalid staged XML for SEP{row['mac']}: {exc}") from exc
+
+            # Pre-render every phone before touching any destination file.
+            for target in targets:
+                if target.exists():
+                    backup = target.with_name(target.name + ".tomos-backup")
+                    shutil.copy2(target, backup)
+                    backups.append((target, backup))
+            for target in targets:
+                os.replace(staged / target.name, target)
+                committed.append(target)
+    except Exception:
+        for target in reversed(committed):
+            backup = next((b for t, b in backups if t == target), None)
+            if backup and backup.exists():
+                shutil.copy2(backup, target)
+            elif target.exists():
+                target.unlink()
+        for _, backup in backups:
+            if backup.exists():
+                backup.unlink()
+        raise
+
+    print(f"Exported and XML-validated {len(rows)} Cisco SEP file(s) to {destination}.")
+    print("Review the files, confirm firmware/template compatibility, then copy them to the TFTP root manually; no live TFTP files or services were changed.")
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", default=os.environ.get("TOMOS_SCCP_DB", DEFAULT_DB),
@@ -392,6 +472,14 @@ def main():
     dhcp.add_argument("--output", required=True)
     dhcp.add_argument("--force", action="store_true")
 
+    sep = sub.add_parser("sep-export", help="render per-phone Cisco SEP XML from inventory into a reviewed TFTP staging directory")
+    sep.add_argument("--pbx-address", required=True, help="phone-reachable PBX IPv4 address")
+    sep.add_argument("--port", type=int, default=2000)
+    sep.add_argument("--ntp-server", help="optional NTP server IPv4 address")
+    sep.add_argument("--template-dir", default="/usr/share/tomos-sccp/tftp-templates")
+    sep.add_argument("--output-dir", required=True, help="staging directory; not the live TFTP root")
+    sep.add_argument("--force", action="store_true", help="back up existing SEP files before replacing them")
+
     args = parser.parse_args()
     db = None
     try:
@@ -421,6 +509,8 @@ def main():
             render_inventory(db, args.output_dir, args.force)
         elif args.command == "dhcp-export":
             export_dhcp_reservations(db, args.output, args.format, args.force)
+        elif args.command == "sep-export":
+            export_sep_configs(db, args)
         return 0
     except (ManagerError, OSError, sqlite3.Error) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

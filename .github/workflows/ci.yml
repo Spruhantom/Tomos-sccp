@@ -34,3 +34,4 @@ jobs:
           python3 tests/test-sccp-tftp.py
           python3 tests/test-sccp-sep.py
           python3 tests/test-sccp-manager.py
+          python3 tests/test-sccp-tftp-check.py

@@ -20,10 +20,12 @@ jobs:
           bash -n scripts/tomos-sccp-install-tftp-templates.sh
           bash -n tests/test-tftp-templates.sh
           bash -n scripts/tomos-sccp-doctor.sh
+          bash -n scripts/tomos-sccp-phone-check.sh
+          bash -n tests/test-sccp-phone-check.sh
           bash -n tests/test-installer-static.sh
           bash -n tests/test-dhcp-examples.sh
       - name: ShellCheck
-        run: shellcheck -S error install.sh install-manager.sh install-stack.sh scripts/tomos-sccp-doctor.sh scripts/tomos-sccp-install-tftp-templates.sh tests/test-installer-static.sh tests/test-dhcp-examples.sh tests/test-tftp-templates.sh
+        run: shellcheck -S error install.sh install-manager.sh install-stack.sh scripts/tomos-sccp-doctor.sh scripts/tomos-sccp-phone-check.sh scripts/tomos-sccp-install-tftp-templates.sh tests/test-installer-static.sh tests/test-dhcp-examples.sh tests/test-tftp-templates.sh
       - name: Static installer checks
         run: bash tests/test-installer-static.sh && bash tests/test-dhcp-examples.sh && bash tests/test-tftp-templates.sh
       - name: modules.conf idempotence
@@ -35,3 +37,4 @@ jobs:
           python3 tests/test-sccp-sep.py
           python3 tests/test-sccp-manager.py
           python3 tests/test-sccp-tftp-check.py
+          bash tests/test-sccp-phone-check.sh

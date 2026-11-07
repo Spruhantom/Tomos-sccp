@@ -21,7 +21,8 @@ TomOS SCCP is an integration layer around the original [chan-sccp/chan-sccp](htt
 - [x] Add an explicit TFTP-root deployment helper
 - [x] Preserve existing TFTP files and never deploy sample credentials automatically
 - [ ] Validate supported phone models and firmware against target handsets
-- [ ] Verify DHCP option 150, TFTP and generated SEP<MAC>.cnf.xml
+- [x] Generate a minimal XMLDefault.cnf.xml with primary/optional backup PBX targets
+- [ ] Verify DHCP option 150, TFTP and model-specific SEP<MAC>.cnf.xml
 - [ ] Test registration and inbound/outbound calls with physical Cisco phones
 
 ## Milestone 3 — FreePBX administration

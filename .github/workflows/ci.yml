@@ -31,3 +31,4 @@ jobs:
         run: |
           python3 tests/test-sccp-provision.py
           python3 tests/test-sccp-tftp.py
+          python3 tests/test-sccp-sep.py

@@ -90,7 +90,7 @@ The renderer validates Cisco MAC addresses, model-number syntax, extension numbe
 
 ## TomOS provisioning manager
 
-TomOS now includes a native SQLite-backed provisioning manager, inspired by Endpoint Manager's separation of vendor, model/template and device inventory. It is a standalone TomOS CLI tool, not a FreePBX PHP module, and it does not copy Endpointman's code.
+TomOS now includes a native SQLite-backed provisioning manager, inspired by Endpoint Manager's separation of vendor, model/template and device inventory. It is the shared inventory engine used by both the native FreePBX web module and the TomOS CLI, and it does not copy Endpointman's code.
 
 Initial support is limited to Cisco SCCP phones and the model-template families supplied by upstream chan-sccp. The catalogue is local; it does not rely on Endpointman's legacy remote provider catalogue.
 

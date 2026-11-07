@@ -51,7 +51,7 @@ The upstream driver documents these dependencies: app_voicemail, bridge_simple, 
 ## Diagnostics
 
 ```bash
-sudo /usr/src/tomos-sccp/scripts/tomos-sccp-doctor.sh
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-doctor.sh
 ```
 
 Manual checks:

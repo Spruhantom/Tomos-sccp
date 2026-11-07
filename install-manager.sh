@@ -38,7 +38,9 @@ install -m 0644 "$SOURCE_MODULE/page.tomos_sccp.php" "$MODULE_PATH/page.tomos_sc
 /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py init
 chown -R asterisk:asterisk "$MODULE_PATH"
 fwconsole chown
-fwconsole ma install tomos_sccp
+if ! fwconsole ma upgrade tomos_sccp; then
+  fwconsole ma install tomos_sccp
+fi
 fwconsole reload
 
 echo "TomOS SCCP Manager installed. Open FreePBX > TomOS SCCP."

@@ -221,6 +221,30 @@ sudo journalctl -u asterisk -n 100
 
 TomOS manages only its marked block in `/etc/asterisk/modules.conf`, excluding Asterisk's competing `chan_skinny.so` and loading `chan_sccp.so`. FreePBX may regenerate this file, so verify module loading after applying configuration and after upgrades.
 
+## GUI line/button configuration, preview and SEP deployment
+
+The native FreePBX page now supports multiple line buttons per phone. Use comma-separated line extensions in button order (up to 32 line buttons), for example:
+
+```bash
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device buttons \
+  --mac 001122AABBCC --extensions 1000,1001,1002
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py line update \
+  --extension 1001 --label Support --description "Support desk" \
+  --context from-internal-xfer
+```
+
+Legacy devices are migrated into a normalized shared line and device-button inventory automatically when the manager opens the database. The GUI edits every assigned line and button order; line button types are currently limited to SCCP `line` buttons (speed-dial and feature-button types are not implemented yet).
+
+Use **Generate preview** in the GUI to render Asterisk include files in a temporary directory and inspect their contents before writing any staging files. **Generate reviewed Asterisk files** writes to the selected staging directory only; it does not install or reload live Asterisk configuration.
+
+The SEP workflow has separate steps:
+1. Export SEP XML to a staging directory using the selected model templates.
+2. Inspect the XML and manifest and retain the SHA-256 approval value printed by the manager.
+3. Enter the same staging directory, the existing TFTP root and the exact reviewed SHA-256 in the deployment form.
+4. Deployment rechecks the manifest digest, file checksums and XML before copying. Existing TFTP targets are refused; no TFTP daemon reload or phone reboot is performed.
+
+The dashboard queries `asterisk -rx "sccp show devices"` and matches the returned device rows against inventory MAC addresses. It reports `registered`, `unregistered`, `not-listed` or `unknown`; unknown is deliberately used when the installed driver output does not expose a recognisable state. Verify this parser against the output from your installed chan-sccp version. This live status requires the FreePBX web account to be able to run the Asterisk CLI command.
+
 ## FreePBX web GUI manager
 
 The default stack installer installs the native `tomos_sccp` FreePBX module. Open **Admin → TomOS SCCP** to manage Cisco phone inventory. The page invokes the installed `tomos-sccp-manager.py` command and reads/writes the same `/var/lib/tomos-sccp/provisioning.db` SQLite database used by CLI commands:

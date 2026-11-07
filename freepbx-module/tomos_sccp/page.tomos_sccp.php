@@ -182,16 +182,18 @@ foreach (($statusData['devices'] ?? []) as $state) { $statusByMac[$state['mac']]
               <button class="btn btn-primary" type="submit">Save buttons</button>
             </form>
           </details>
-          <details><summary>Edit shared primary line settings</summary>
+          <?php foreach (($phone['buttons'] ?? []) as $button): ?>
+          <details><summary>Edit line <?php echo tomos_sccp_h($button['line_extension']); ?></summary>
             <form method="post">
               <input type="hidden" name="csrf" value="<?php echo tomos_sccp_h($csrf); ?>"><input type="hidden" name="action" value="line-update">
-              <input type="hidden" name="line_extension" value="<?php echo tomos_sccp_h($phone['extension']); ?>">
+              <input type="hidden" name="line_extension" value="<?php echo tomos_sccp_h($button['line_extension']); ?>">
               <?php foreach (['label'=>'Label','description'=>'Description','context'=>'Context','cid_name'=>'Caller ID name','cid_num'=>'Caller ID number'] as $field=>$label): ?>
-                <label><?php echo tomos_sccp_h($label); ?><input class="form-control" name="<?php echo tomos_sccp_h($field); ?>" value="<?php echo tomos_sccp_h($phone[$field] ?? ''); ?>"></label>
+                <label><?php echo tomos_sccp_h($label); ?><input class="form-control" name="<?php echo tomos_sccp_h($field); ?>" value="<?php echo tomos_sccp_h($button[$field] ?? ''); ?>"></label>
               <?php endforeach; ?>
-              <button class="btn btn-primary" type="submit">Save line</button>
+              <button class="btn btn-primary" type="submit">Save shared line</button>
             </form>
           </details>
+          <?php endforeach; ?>
           <form method="post" onsubmit="return confirm('Remove this phone from the TomOS inventory?');">
             <input type="hidden" name="csrf" value="<?php echo tomos_sccp_h($csrf); ?>"><input type="hidden" name="action" value="delete">
             <input type="hidden" name="mac" value="<?php echo tomos_sccp_h($phone['mac']); ?>"><button class="btn btn-danger btn-xs" type="submit">Remove</button>

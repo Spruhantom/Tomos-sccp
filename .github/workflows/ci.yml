@@ -1,0 +1,25 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shell-and-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install test tools
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Bash syntax
+        run: |
+          bash -n install.sh
+          bash -n scripts/tomos-sccp-doctor.sh
+          bash -n tests/test-installer-static.sh
+      - name: ShellCheck
+        run: shellcheck install.sh scripts/tomos-sccp-doctor.sh tests/test-installer-static.sh
+      - name: Static installer checks
+        run: bash tests/test-installer-static.sh
+      - name: modules.conf idempotence
+        run: python3 tests/test-modules-conf.py

@@ -413,8 +413,127 @@ def export_sep_configs(db, args):
                 backup.unlink()
         raise
 
+    import hashlib
+    manifest = {
+        "schema_version": 1,
+        "pbx_address": str(ipaddress.IPv4Address(args.pbx_address)),
+        "sccp_port": args.port,
+        "files": [
+            {"mac": row["mac"], "template_family": row["template_family"],
+             "filename": target.name,
+             "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+            for row, target in zip(rows, targets)
+        ],
+    }
+    manifest_path = destination / "tomos-sccp-sep-manifest.json"
+    if manifest_path.exists() and not args.force:
+        raise ManagerError(f"refusing to overwrite {manifest_path}; use --force to preserve a backup")
+    manifest_backup = pathlib.Path(str(manifest_path) + ".tomos-backup")
+    if manifest_path.exists() and manifest_backup.exists():
+        raise ManagerError(f"backup already exists: {manifest_backup}")
+    manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\\n").encode("utf-8")
+    if manifest_path.exists():
+        import shutil
+        shutil.copy2(manifest_path, manifest_backup)
+    fd, temporary_manifest = tempfile.mkstemp(prefix=".tomos-sep-manifest-", dir=str(destination))
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(manifest_bytes)
+        os.chmod(temporary_manifest, 0o600)
+        os.replace(temporary_manifest, manifest_path)
+    finally:
+        if os.path.exists(temporary_manifest):
+            os.unlink(temporary_manifest)
+    approval = hashlib.sha256(manifest_bytes).hexdigest()
     print(f"Exported and XML-validated {len(rows)} Cisco SEP file(s) to {destination}.")
-    print("Review the files, confirm firmware/template compatibility, then copy them to the TFTP root manually; no live TFTP files or services were changed.")
+    print(f"Review all XML files, then approve this exact manifest for deployment with SHA-256: {approval}")
+    print("No live TFTP files, DHCP, Asterisk or phones were changed.")
+
+
+def deploy_sep_configs(args):
+    """Deploy only a reviewed SEP export whose manifest hash was approved."""
+    import hashlib
+    import shutil
+    import xml.etree.ElementTree as ET
+
+    staging = pathlib.Path(args.staging_dir).resolve()
+    tftp_root = pathlib.Path(args.tftp_root).resolve()
+    manifest_path = staging / "tomos-sccp-sep-manifest.json"
+    if not staging.is_dir() or not tftp_root.is_dir():
+        raise ManagerError("staging directory and existing TFTP root must both exist")
+    if staging == tftp_root or staging in tftp_root.parents or tftp_root in staging.parents:
+        raise ManagerError("staging directory and TFTP root must be separate directories")
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ManagerError("review manifest is missing or is not a regular file")
+    raw_manifest = manifest_path.read_bytes()
+    actual_approval = hashlib.sha256(raw_manifest).hexdigest()
+    if not re.fullmatch(r"[0-9a-f]{64}", args.approve_sha256 or ""):
+        raise ManagerError("deployment requires --approve-sha256 with the reviewed manifest hash")
+    if actual_approval != args.approve_sha256:
+        raise ManagerError("manifest approval hash does not match; review the current export again")
+    try:
+        manifest = json.loads(raw_manifest)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ManagerError(f"invalid SEP export manifest: {exc}") from exc
+    if manifest.get("schema_version") != 1 or not isinstance(manifest.get("files"), list) or not manifest["files"]:
+        raise ManagerError("unsupported or empty SEP export manifest")
+    filenames = set()
+    sources = []
+    for entry in manifest["files"]:
+        filename, mac, digest = entry.get("filename", ""), entry.get("mac", ""), entry.get("sha256", "")
+        if not MAC_RE.fullmatch(mac) or filename != f"SEP{mac}.cnf.xml":
+            raise ManagerError("manifest contains an invalid Cisco SEP filename or MAC")
+        if filename in filenames or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ManagerError("manifest contains duplicate filenames or invalid SHA-256 values")
+        filenames.add(filename)
+        source = staging / filename
+        if source.is_symlink() or not source.is_file():
+            raise ManagerError(f"staged SEP file is missing or not a regular file: {filename}")
+        if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
+            raise ManagerError(f"staged SEP file changed since review: {filename}")
+        try:
+            ET.parse(source)
+        except ET.ParseError as exc:
+            raise ManagerError(f"staged SEP file is not valid XML: {filename}: {exc}") from exc
+        sources.append((source, tftp_root / filename))
+
+    backups = []
+    committed = []
+    with tempfile.TemporaryDirectory(prefix=".tomos-sccp-deploy-", dir=str(tftp_root)) as temp:
+        prepared = pathlib.Path(temp)
+        for source, target in sources:
+            if target.is_symlink() or (target.exists() and not target.is_file()):
+                raise ManagerError(f"refusing to replace non-regular TFTP target: {target}")
+            backup = pathlib.Path(str(target) + ".tomos-backup")
+            if target.exists() and not args.force:
+                raise ManagerError(f"refusing to overwrite {target}; use --force after reviewing its backup")
+            if target.exists() and backup.exists():
+                raise ManagerError(f"backup already exists: {backup}; move it before deployment")
+            shutil.copyfile(source, prepared / target.name)
+            os.chmod(prepared / target.name, 0o644)
+        try:
+            for _, target in sources:
+                if target.exists():
+                    backup = pathlib.Path(str(target) + ".tomos-backup")
+                    shutil.copy2(target, backup)
+                    backups.append((target, backup))
+            for _, target in sources:
+                os.replace(prepared / target.name, target)
+                committed.append(target)
+        except Exception:
+            for target in reversed(committed):
+                backup = next((b for t, b in backups if t == target), None)
+                if backup and backup.exists():
+                    shutil.copy2(backup, target)
+                elif target.exists():
+                    target.unlink()
+            for _, backup in backups:
+                if backup.exists():
+                    backup.unlink()
+            raise
+
+    print(f"Deployed {len(sources)} reviewed Cisco SEP file(s) to {tftp_root}.")
+    print("Existing files were backed up where replaced. No TFTP service reload or handset restart was performed.")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -480,6 +599,14 @@ def main():
     sep.add_argument("--output-dir", required=True, help="staging directory; not the live TFTP root")
     sep.add_argument("--force", action="store_true", help="back up existing SEP files before replacing them")
 
+    deploy = sub.add_parser("sep-deploy", help="deploy only a reviewed SEP export into an existing TFTP root")
+    deploy.add_argument("--staging-dir", required=True)
+    deploy.add_argument("--tftp-root", required=True)
+    deploy.add_argument("--approve-sha256", required=True,
+                        help="SHA-256 printed by sep-export after reviewing the manifest")
+    deploy.add_argument("--force", action="store_true",
+                        help="back up existing TFTP files before replacing them")
+
     args = parser.parse_args()
     db = None
     try:
@@ -511,6 +638,8 @@ def main():
             export_dhcp_reservations(db, args.output, args.format, args.force)
         elif args.command == "sep-export":
             export_sep_configs(db, args)
+        elif args.command == "sep-deploy":
+            deploy_sep_configs(args)
         return 0
     except (ManagerError, OSError, sqlite3.Error) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

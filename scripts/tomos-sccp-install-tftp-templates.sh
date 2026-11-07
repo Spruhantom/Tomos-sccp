@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Copy upstream Cisco TFTP templates into an explicitly selected TFTP root.
 set -Eeuo pipefail
-SOURCE="/usr/share/tomos-sccp/tftp-templates"
+SOURCE="${TOMOS_SCCP_TEMPLATE_SOURCE:-/usr/share/tomos-sccp/tftp-templates}"
 usage() { echo "Usage: tomos-sccp-install-tftp-templates.sh --tftp-root PATH"; }
-[[ $EUID -eq 0 ]] || { echo "Run as root." >&2; exit 1; }
 ROOT=""
 while (($#)); do
   case "$1" in
@@ -24,7 +23,7 @@ while IFS= read -r -d '' file; do
     echo "[SKIP] Existing file preserved: $target"
     SKIPPED=$((SKIPPED + 1))
   else
-    install -o root -g root -m 0644 "$file" "$target"
+    install -m 0644 "$file" "$target"
     echo "[COPY] $target"
     COPIED=$((COPIED + 1))
   fi

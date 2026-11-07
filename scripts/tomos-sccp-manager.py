@@ -34,10 +34,17 @@ MAC_RE = re.compile(r"^[0-9A-Fa-f]{12}$")
 MODEL_RE = re.compile(r"^[0-9]{3,4}$")
 EXT_RE = re.compile(r"^[0-9]{1,20}$")
 CONTEXT_RE = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
+MODEL_TEMPLATE_FAMILIES = {"7940": "7940_7960", "7960": "7940_7960", "7970": "797x"}
 
 
 class ManagerError(ValueError):
     """Raised for invalid manager operations."""
+
+
+def validate_model_template(model, family):
+    expected = MODEL_TEMPLATE_FAMILIES.get(model)
+    if expected and family != expected:
+        raise ManagerError(f"Cisco model {model} requires template family {expected}, not {family}")
 
 
 def clean_text(value, field, limit=80):
@@ -318,6 +325,7 @@ def update_device(db, args):
         raise ManagerError("--model must be a 3- or 4-digit SCCP device type")
     if values["template_family"] not in TEMPLATE_FAMILIES:
         raise ManagerError(f"unsupported Cisco template family: {values['template_family']}")
+    validate_model_template(values["model_number"], values["template_family"])
     if not EXT_RE.fullmatch(values["extension"]):
         raise ManagerError("--extension must contain 1–20 digits")
     if not CONTEXT_RE.fullmatch(values["context"]):

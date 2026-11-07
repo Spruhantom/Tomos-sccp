@@ -223,19 +223,20 @@ TomOS manages only its marked block in `/etc/asterisk/modules.conf`, excluding A
 
 ## GUI line/button configuration, preview and SEP deployment
 
-The native FreePBX page now supports multiple line buttons per phone. Use comma-separated line extensions in button order (up to 32 line buttons), for example:
+The native FreePBX page manages a shared device, line and ordered button inventory. Up to 32 button positions are supported per phone. The first configured button must remain a line button.
 
-```bash
-sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device buttons \
-  --mac 001122AABBCC --extensions 1000,1001,1002
-sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py line update \
-  --extension 1001 --label Support --description "Support desk" \
-  --context from-internal-xfer
-```
+Use comma-separated extensions to set line buttons while preserving speed-dial and feature buttons:
 
-Legacy devices are migrated into a normalized shared line and device-button inventory automatically when the manager opens the database. The GUI edits every assigned line and button order; line button types are currently limited to SCCP `line` buttons (speed-dial and feature-button types are not implemented yet).
+    sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device buttons --mac 001122AABBCC --extensions 1000,1001
+    sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device button-add --mac 001122AABBCC --type speeddial --label "Reception" --option1 2000 --option2 2000@hints
+    sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device button-add --mac 001122AABBCC --type feature --label "Do Not Disturb" --option1 DND --option2 busy
+    sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py device button-remove --mac 001122AABBCC --position 3
 
-Use **Generate preview** in the GUI to render Asterisk include files in a temporary directory and inspect their contents before writing any staging files. **Generate reviewed Asterisk files** writes to the selected staging directory only; it does not install or reload live Asterisk configuration.
+Supported button types are line, speeddial, feature and empty. Speed dial accepts a dialable destination and optional extension@context BLF hint. Feature buttons are validated against the supported chan-sccp functions: privacy (callpresent or hint), call forwarding (cfwdall / cfwbusy), DND (busy / silent), call recording (monitor), parking-lot selection and custom device state. Unknown feature names and unsafe label/parameter strings are rejected. Generated button assignments go into the managed sccp_hardware.conf device section; these are chan-sccp driver settings, not Cisco SEP XML button tags. See the upstream chan-sccp button configuration reference: https://github-wiki-see.page/m/chan-sccp/chan-sccp/wiki/Button-Configuration.
+
+Legacy line-only button tables are migrated in place to the expanded inventory schema. The GUI and CLI use the same database. Updating the line-button list preserves existing speed-dial and feature entries, placing them after the updated line buttons.
+
+Use Generate preview in the GUI to render Asterisk include files in a temporary directory and inspect their contents before writing any staging files. Generate reviewed Asterisk files writes to the selected staging directory only; it does not install or reload live Asterisk configuration.
 
 The SEP workflow has separate steps:
 1. Export SEP XML to a staging directory using the selected model templates.
@@ -243,7 +244,7 @@ The SEP workflow has separate steps:
 3. Enter the same staging directory, the existing TFTP root and the exact reviewed SHA-256 in the deployment form.
 4. Deployment rechecks the manifest digest, file checksums and XML before copying. Existing TFTP targets are refused; no TFTP daemon reload or phone reboot is performed.
 
-The dashboard queries `asterisk -rx "sccp show devices"` and matches the returned device rows against inventory MAC addresses. It reports `registered`, `unregistered`, `not-listed` or `unknown`; unknown is deliberately used when the installed driver output does not expose a recognisable state. Verify this parser against the output from your installed chan-sccp version. This live status requires the FreePBX web account to be able to run the Asterisk CLI command.
+The dashboard queries asterisk -rx "sccp show devices" and matches returned device rows against inventory MAC addresses. It reports registered, unregistered, not-listed or unknown. The read-only physical-handset snapshot helper is scripts/tomos-sccp-phone-check.sh; run it on the PBX with sudo bash scripts/tomos-sccp-phone-check.sh --mac 001122AABBCC --extension 1000 and compare the real driver output. A successful CI mock does not establish registration or audio on a physical phone. Real handset testing must include registration, inbound/outbound calls, BLF, DND, call forwarding, TFTP retrieval and two-way audio.
 
 ## FreePBX web GUI manager
 
@@ -254,7 +255,7 @@ The default stack installer installs the native `tomos_sccp` FreePBX module. Ope
 - Continue using `tomos-sccp-manager.py device add/update/list/show/remove` from a shell; both interfaces operate on the same records.
 - The database is owned by the FreePBX `asterisk` account/group with non-world-readable permissions so the authenticated FreePBX page can update it.
 
-The initial GUI milestone covers shared device inventory CRUD. It does not yet expose every advanced driver feature (for example button/softkey layouts), nor does it automatically apply generated files to live Asterisk or TFTP. Rendering and deployment remain explicit CLI workflows. The older Nortien `sccp_manager` module is no longer installed by the default TomOS installer; if it is already present on a PBX, do not use both modules to manage the same phones. Back up the PBX before installing and validate on a staging host.
+The GUI supports shared inventory CRUD, line configuration, ordered line/speed-dial/feature/empty buttons, preview, SEP export and explicitly approved TFTP deployment. Generated Asterisk configuration still requires an operator-controlled staging review and application. The web interface does not reload Asterisk or reboot phones automatically. The older Nortien `sccp_manager` module is no longer installed by the default TomOS installer; if it is already present on a PBX, do not use both modules to manage the same phones. Back up the PBX before installing and validate on a staging host.
 
 ## Tests
 

@@ -80,15 +80,25 @@ fi
 
 log "Installing the staged channel driver."
 if ! install -o asterisk -g asterisk -m 0644 "$BUILT_MODULE" "$MODULE_DIR/chan_sccp.so"; then
-  [[ ! -f "$BACKUP_DIR/chan_sccp.so.previous" ]] || asterisk -rx 'module load chan_sccp.so' >/dev/null 2>&1 || true
-  die "Could not install the new module. The previous module file was retained where possible."
+  if [[ -f "$BACKUP_DIR/chan_sccp.so.previous" ]]; then
+    cp -a "$BACKUP_DIR/chan_sccp.so.previous" "$MODULE_DIR/chan_sccp.so"
+    asterisk -rx 'module load chan_sccp.so' >/dev/null 2>&1 || true
+  fi
+  die "Could not install the new module. The previous module was restored where available."
 fi
 if ! python3 "$HELPERS/manage-modules-conf.py" "$MODULES_CONF"; then
   if [[ -f "$BACKUP_DIR/chan_sccp.so.previous" ]]; then
     cp -a "$BACKUP_DIR/chan_sccp.so.previous" "$MODULE_DIR/chan_sccp.so"
     asterisk -rx 'module load chan_sccp.so' >/dev/null 2>&1 || true
+  else
+    rm -f "$MODULE_DIR/chan_sccp.so"
   fi
-  die "Could not safely update modules.conf. Previous driver was restored where available."
+  if [[ -f "$BACKUP_DIR/modules.conf.original" ]]; then
+    cp -a "$BACKUP_DIR/modules.conf.original" "$MODULES_CONF"
+  else
+    rm -f "$MODULES_CONF"
+  fi
+  die "Could not safely update modules.conf. Previous driver/configuration were restored where available."
 fi
 
 asterisk -rx 'module unload chan_skinny.so' >/dev/null 2>&1 || true

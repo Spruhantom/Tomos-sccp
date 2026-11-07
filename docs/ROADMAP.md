@@ -24,11 +24,11 @@ This repository currently provides the SCCP driver build/install integration and
 - [ ] Test registration and calls with physical Cisco handsets
 
 ## Milestone 3 — FreePBX integration
-- [ ] Confirm supported FreePBX 17 module APIs and packaging requirements
-- [ ] Build a native FreePBX module for SCCP device and line administration
-- [ ] Use FreePBX authorization and permission mechanisms
-- [ ] Keep Asterisk config generation compatible with FreePBX reloads
-- [ ] Add module install, upgrade and uninstall tests
+- [x] Identify the FreePBX 17-tested SCCP Manager companion (nortien/sccp_manager 17.1.1)
+- [ ] Validate its GPL module and driver compatibility against TomOS build output
+- [ ] Decide whether TomOS ships a branded fork or installs the upstream companion unchanged
+- [ ] Integrate GUI installation/upgrade without overwriting existing FreePBX settings
+- [ ] Test module install, upgrade and uninstall on clean FreePBX 17 images
 
 ## Milestone 4 — operations and monitoring
 - [ ] Registration/session status

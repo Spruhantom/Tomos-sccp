@@ -34,6 +34,7 @@ with tempfile.TemporaryDirectory() as directory:
     members = ET.parse(output).findall("./callManagerGroup/members/member")
     assert len(members) == 2
     run("--pbx-address", "not-an-ip", "--output", root / "bad.xml", expected=2)
+    run("--pbx-address", "2001:db8::1", "--output", root / "bad.xml", expected=2)
     run("--pbx-address", "192.168.1.1", "--port", "0", "--output", root / "bad.xml", expected=2)
     tftp = root / "tftp"
     tftp.mkdir()

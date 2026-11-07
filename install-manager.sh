@@ -24,6 +24,18 @@ SOURCE_MODULE="$TMP/source/freepbx-module/tomos_sccp"
   exit 1
 }
 
+HELPER_PATH="/usr/local/libexec/tomos-sccp"
+for helper in tomos-sccp-manager.py tomos-sccp-provision.py tomos-sccp-sep.py; do
+  [[ -f "$TMP/source/scripts/$helper" ]] || {
+    echo "Required TomOS SCCP helper is missing: $helper" >&2
+    exit 1
+  }
+done
+install -d -m 0755 "$HELPER_PATH"
+install -m 0755 "$TMP/source/scripts/tomos-sccp-manager.py" "$HELPER_PATH/tomos-sccp-manager.py"
+install -m 0755 "$TMP/source/scripts/tomos-sccp-provision.py" "$HELPER_PATH/tomos-sccp-provision.py"
+install -m 0755 "$TMP/source/scripts/tomos-sccp-sep.py" "$HELPER_PATH/tomos-sccp-sep.py"
+
 install -d -m 0755 "$(dirname "$MODULE_PATH")"
 if [[ -e "$MODULE_PATH" && ! -f "$MODULE_PATH/module.xml" ]]; then
   echo "Refusing to replace unexpected content at $MODULE_PATH." >&2

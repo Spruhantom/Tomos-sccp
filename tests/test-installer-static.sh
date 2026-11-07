@@ -37,3 +37,7 @@ grep -q 'button-add' "$ROOT/freepbx-module/tomos_sccp/page.tomos_sccp.php"
 grep -q 'button-remove' "$ROOT/freepbx-module/tomos_sccp/page.tomos_sccp.php"
 grep -q 'speeddial' "$ROOT/scripts/tomos-sccp-manager.py"
 grep -q 'parkinglot' "$ROOT/scripts/tomos-sccp-manager.py"
+
+grep -q 'tomos-sccp-manager.py" "$HELPER_PATH/tomos-sccp-manager.py"' "$ROOT/install-manager.sh"
+grep -q 'tomos-sccp-provision.py" "$HELPER_PATH/tomos-sccp-provision.py"' "$ROOT/install-manager.sh"
+grep -q 'tomos-sccp-sep.py" "$HELPER_PATH/tomos-sccp-sep.py"' "$ROOT/install-manager.sh"

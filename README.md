@@ -121,7 +121,7 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py render \
   --output-dir /var/tmp/tomos-sccp-generated
 ```
 
-The inventory database defaults to `/var/lib/tomos-sccp/provisioning.db`; override it with `--database` or `TOMOS_SCCP_DB`. The database is created with owner-only file permissions. Device removal requires `--confirm`. Rendering delegates to the existing tested SCCP renderer and never edits live Asterisk or TFTP configuration. The current renderer requires all devices in one render to share the same dialplan context. Phone model numbers and template-family selections must be checked against the physical handset and firmware; the template family is not an automatic firmware compatibility guarantee.
+The inventory database defaults to `/var/lib/tomos-sccp/provisioning.db`; override it with `--database` or `TOMOS_SCCP_DB`. The database directory is restricted to the asterisk account and the database file is group-readable/writable only by the asterisk group so the FreePBX GUI and root CLI share it. Device removal requires `--confirm`. Rendering delegates to the existing tested SCCP renderer and never edits live Asterisk or TFTP configuration. The current renderer requires all devices in one render to share the same dialplan context. Phone model numbers and template-family selections must be checked against the physical handset and firmware; the template family is not an automatic firmware compatibility guarantee.
 
 ### Export static DHCP reservations from the phone inventory
 

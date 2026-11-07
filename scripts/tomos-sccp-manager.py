@@ -353,6 +353,12 @@ def export_sep_configs(db, args):
     destination = pathlib.Path(args.output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     targets = [destination / f"SEP{row['mac']}.cnf.xml" for row in rows]
+    manifest_path = destination / "tomos-sccp-sep-manifest.json"
+    manifest_backup = pathlib.Path(str(manifest_path) + ".tomos-backup")
+    if manifest_path.exists() and not args.force:
+        raise ManagerError(f"refusing to overwrite {manifest_path}; use --force to preserve a backup")
+    if manifest_path.exists() and manifest_backup.exists():
+        raise ManagerError(f"backup already exists: {manifest_backup}")
     for target in targets:
         if target.exists() and not args.force:
             raise ManagerError(f"refusing to overwrite {target}; use --force to preserve backups")
@@ -425,12 +431,6 @@ def export_sep_configs(db, args):
             for row, target in zip(rows, targets)
         ],
     }
-    manifest_path = destination / "tomos-sccp-sep-manifest.json"
-    if manifest_path.exists() and not args.force:
-        raise ManagerError(f"refusing to overwrite {manifest_path}; use --force to preserve a backup")
-    manifest_backup = pathlib.Path(str(manifest_path) + ".tomos-backup")
-    if manifest_path.exists() and manifest_backup.exists():
-        raise ManagerError(f"backup already exists: {manifest_backup}")
     manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\\n").encode("utf-8")
     if manifest_path.exists():
         import shutil

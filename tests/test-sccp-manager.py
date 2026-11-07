@@ -37,11 +37,17 @@ with tempfile.TemporaryDirectory() as temporary:
     assert len(shared_inventory) == 1
     assert shared_inventory[0]["mac"] == "001122334455"
     assert shared_inventory[0]["dhcp_address"] == "192.168.10.50"
-    assert json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)["extension"] == "1000"\n    shared_inventory = json.loads(run(database, "device", "list", "--json").stdout)\n    assert len(shared_inventory) == 1\n    assert shared_inventory[0]["mac"] == "001122334455"\n    assert shared_inventory[0]["dhcp_address"] == "192.168.10.50"\n    assert json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)["extension"] == "1000"
+    assert json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)["extension"] == "1000"
+    shared_inventory = json.loads(run(database, "device", "list", "--json").stdout)
+    assert len(shared_inventory) == 1
+    assert shared_inventory[0]["mac"] == "001122334455"
+    assert shared_inventory[0]["dhcp_address"] == "192.168.10.50"
+    assert json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)["extension"] == "1000"
     run(database, "device", "update", "--mac", "001122334455", "--description", "Main reception")
     details = run(database, "device", "show", "--mac", "001122334455").stdout
     assert "description: Main reception" in details
-    run(database, "device", "update", "--mac", "001122334455", "--context", "bad\\n[general]", expected=2)
+    run(database, "device", "update", "--mac", "001122334455", "--context", "bad\
+[general]", expected=2)
     assert "template_family: 7940_7960" in details
     assert "extension: 1000" in details
 
@@ -65,10 +71,12 @@ with tempfile.TemporaryDirectory() as temporary:
         "--template-family", "7940_7960", "--extension", "1001",
         "--description", "Duplicate IP", "--dhcp-address", "192.168.10.50", expected=2)
     backup_target = root / "exports" / "overwrite.conf"
-    backup_target.write_text("existing config\n", encoding="utf-8")
+    backup_target.write_text("existing config
+", encoding="utf-8")
     run(database, "dhcp-export", "--format", "dnsmasq", "--output", backup_target,
         "--force")
-    assert pathlib.Path(str(backup_target) + ".tomos-backup").read_text(encoding="utf-8") == "existing config\n"
+    assert pathlib.Path(str(backup_target) + ".tomos-backup").read_text(encoding="utf-8") == "existing config
+"
 
     # Duplicate MACs and unsupported vendor/template families are rejected.
     run(database, *add_args, expected=2)
@@ -80,7 +88,8 @@ with tempfile.TemporaryDirectory() as temporary:
         "--description", "Bad template", expected=2)
     run(database, "device", "add", "--mac", "001122334488", "--model", "7960",
         "--template-family", "7940_7960", "--extension", "1003",
-        "--description", "Bad\n[general]", expected=2)
+        "--description", "Bad
+[general]", expected=2)
 
     # Manager delegates output generation to the existing, tested renderer.
     rendered = run(database, "render", "--output-dir", output)
@@ -138,7 +147,8 @@ with tempfile.TemporaryDirectory() as temporary:
     run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
         "--approve-sha256", manifest_hash, "--force")
     assert pathlib.Path(str(deployed) + ".tomos-backup").read_text(encoding="utf-8") == "existing live file"
-    sep_file.write_text(sep_file.read_text(encoding="utf-8") + "<!-- changed -->\\n", encoding="utf-8")
+    sep_file.write_text(sep_file.read_text(encoding="utf-8") + "<!-- changed -->\
+", encoding="utf-8")
     run(database, "sep-deploy", "--staging-dir", sep_output, "--tftp-root", tftp_root,
         "--approve-sha256", manifest_hash, expected=2)
 

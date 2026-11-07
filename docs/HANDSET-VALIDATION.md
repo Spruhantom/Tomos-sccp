@@ -54,14 +54,26 @@ Using a second known-good endpoint, record each result separately:
 
 A call that connects without two-way audio is a failed media test. Record codec negotiation, RTP ports and firewall/NAT observations when diagnosing audio.
 
-## 5. Compatibility evidence matrix
+## 5. Button and feature acceptance
+
+For each model/firmware combination, configure and record each button by its physical position and displayed label. Verify speed dial reaches the intended destination, BLF reflects idle/ringing/busy state and recovers to idle, DND changes inbound-call handling as configured, and call forwarding activates and clears correctly. A successful config render is not proof that the phone firmware exposes or implements that key function. Record unsupported or differently labelled keys as model-specific limitations.
+
+## 6. Compatibility evidence matrix
 
 Create one row per physical model and firmware combination. Do not generalise a pass to other models or firmware loads.
 
 | Model | Hardware revision | Firmware | SEP template family | TFTP | Registered | Outbound | Inbound | Two-way audio | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Not yet tested | — | — | — | Not tested | Not tested | Not tested | Not tested | Not tested | Awaiting hardware |
+| Cisco 7940 | Not recorded | Not established | `7940_7960` | Not tested | Not tested | Not tested | Not tested | Not tested | Candidate only; awaiting handset |
+| Cisco 7960 | Not recorded | Not established | `7940_7960` | Not tested | Not tested | Not tested | Not tested | Not tested | Candidate only; awaiting handset |
+| Cisco 7970 | Not recorded | Not established | `797x` | Not tested | Not tested | Not tested | Not tested | Not tested | Candidate only; awaiting handset |
 
-## Acceptance criteria
+## 7. Test evidence separation
+
+- **CI fixture tests:** validate input rules, model-to-template selection and XML transformations using synthetic fixtures. They do not run chan-sccp or emulate a Cisco phone.
+- **Asterisk staging test:** must use the intended Asterisk build with the real `chan_sccp.so` loaded. Capture `core show version`, `module show like chan_sccp.so`, `sccp show devices`, `sccp show lines` and service logs. The existing phone-check script is read-only and collects this snapshot.
+- **Physical handset test:** requires the exact handset and firmware, verified TFTP retrieval, registration, call tests, button behaviour and two-way audio. Record each model/firmware separately.
+
+## 8. Acceptance criteria
 
 A model/firmware combination is validated only when the exact phone retrieves the intended configuration, registers to the test PBX, completes inbound and outbound calls, and passes two-way audio. Keep the project in development status until this evidence exists for the target fleet.

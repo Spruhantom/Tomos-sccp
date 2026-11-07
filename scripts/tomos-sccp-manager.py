@@ -331,7 +331,9 @@ def main():
         elif args.command == "device":
             if args.action == "add":
                 add_device(db, args)
-            elif args.action == "update":\n                update_device(db, args)\n            elif args.action == "list":
+            elif args.action == "update":
+                update_device(db, args)
+            elif args.action == "list":
                 list_devices(db)
             elif args.action == "show":
                 show_device(db, args.mac)

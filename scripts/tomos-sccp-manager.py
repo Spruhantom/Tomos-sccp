@@ -365,7 +365,9 @@ def show_device(db, mac, as_json=False):
 
 def get_device_buttons(db, mac):
     return [dict(row) for row in db.execute(
-        "SELECT position,button_type,line_extension FROM device_buttons WHERE mac=? ORDER BY position",
+        "SELECT b.position,b.button_type,b.line_extension,l.label,l.description,l.context,l.cid_name,l.cid_num "
+        "FROM device_buttons b JOIN lines l ON l.extension=b.line_extension "
+        "WHERE b.mac=? ORDER BY b.position",
         (mac,)
     ).fetchall()]
 

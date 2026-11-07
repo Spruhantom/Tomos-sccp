@@ -28,4 +28,6 @@ jobs:
       - name: modules.conf idempotence
         run: python3 tests/test-modules-conf.py
       - name: SCCP provisioning tests
-        run: python3 tests/test-sccp-provision.py
+        run: |
+          python3 tests/test-sccp-provision.py
+          python3 tests/test-sccp-tftp.py

@@ -20,11 +20,11 @@ class TftpConfigError(ValueError):
 
 def build_xml(host, port, backup_host=None):
     try:
-        host = str(ipaddress.ip_address(host))
+        host = str(ipaddress.IPv4Address(host))
         if backup_host:
-            backup_host = str(ipaddress.ip_address(backup_host))
+            backup_host = str(ipaddress.IPv4Address(backup_host))
     except ValueError as exc:
-        raise TftpConfigError(f"PBX addresses must be valid IPv4 or IPv6 literals: {exc}") from exc
+        raise TftpConfigError(f"PBX addresses must be valid IPv4 literals: {exc}") from exc
     if not 1 <= port <= 65535:
         raise TftpConfigError("SCCP port must be between 1 and 65535")
     if backup_host == host:

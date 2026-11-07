@@ -383,6 +383,33 @@ def set_device_buttons(db, mac, raw_extensions):
     print(f"Saved {len(extensions)} line button(s) for SEP{mac}.")
 
 
+
+def update_line(db, args):
+    if not EXT_RE.fullmatch(args.extension):
+        raise ManagerError("--extension must contain 1–20 digits")
+    row = db.execute("SELECT * FROM lines WHERE extension=?", (args.extension,)).fetchone()
+    if row is None:
+        raise ManagerError(f"line not found: {args.extension}")
+    values = {
+        "label": clean_text(args.label, "--label") if args.label is not None else row["label"],
+        "description": clean_text(args.description, "--description") if args.description is not None else row["description"],
+        "context": args.context if args.context is not None else row["context"],
+        "cid_name": clean_text(args.cid_name, "--cid-name") if args.cid_name is not None else row["cid_name"],
+        "cid_num": clean_text(args.cid_num, "--cid-num", 40) if args.cid_num is not None else row["cid_num"],
+    }
+    if not CONTEXT_RE.fullmatch(values["context"]):
+        raise ManagerError("--context contains invalid characters")
+    now = datetime.now(timezone.utc).isoformat()
+    with db:
+        db.execute("UPDATE lines SET label=?,description=?,context=?,cid_name=?,cid_num=?,updated_at=? WHERE extension=?",
+                   (values["label"], values["description"], values["context"], values["cid_name"],
+                    values["cid_num"], now, args.extension))
+        db.execute("UPDATE devices SET label=?,description=?,context=?,cid_name=?,cid_num=?,updated_at=? WHERE extension=?",
+                   (values["label"], values["description"], values["context"], values["cid_name"],
+                    values["cid_num"], now, args.extension))
+    print(f"Updated line {args.extension}.")
+
+
 def preview_inventory(db):
     import contextlib
     import io
@@ -473,6 +500,32 @@ def render_inventory(db, output_dir, force):
         print(result.stdout, end="")
     if result.returncode:
         raise ManagerError(result.stderr.strip() or "SCCP renderer failed")
+    hardware_path = pathlib.Path(output_dir) / "sccp_hardware.conf"
+    hardware_text = hardware_path.read_text(encoding="utf-8")
+    for row in rows:
+        buttons = get_device_buttons(db, row["mac"])
+        button_lines = "\n".join(f"button = line, {item['line_extension']}" for item in buttons)
+        default_line = f"button = line, {row['extension']}"
+        if button_lines:
+            hardware_text = hardware_text.replace(default_line, button_lines, 1)
+    hardware_path.write_text(hardware_text, encoding="utf-8")
+
+    extension_path = pathlib.Path(output_dir) / "sccp_extensions.conf"
+    extension_text = extension_path.read_text(encoding="utf-8")
+    rendered_extensions = {row["extension"] for row in rows}
+    all_lines = db.execute(
+        "SELECT * FROM lines WHERE extension IN (SELECT line_extension FROM device_buttons) ORDER BY extension"
+    ).fetchall()
+    for line in all_lines:
+        if line["extension"] in rendered_extensions:
+            continue
+        extension_text += (
+            f"\n[{line['extension']}]\ntype = line\nid = 1\n"
+            f"label = {line['label']}\ndescription = {line['description']}\n"
+            f"context = {line['context']}\ncid_name = {line['cid_name']}\n"
+            f"cid_num = {line['cid_num']}\n"
+        )
+    extension_path.write_text(extension_text, encoding="utf-8")
     print(f"Managed inventory: {len(rows)} phone(s).")
 
 
@@ -728,6 +781,16 @@ def main():
     buttons.add_argument("--mac", required=True)
     buttons.add_argument("--extensions", required=True, help="comma-separated line extensions in button order")
 
+    line = sub.add_parser("line", help="manage shared line configuration")
+    line_sub = line.add_subparsers(dest="action", required=True)
+    line_update = line_sub.add_parser("update")
+    line_update.add_argument("--extension", required=True)
+    line_update.add_argument("--label")
+    line_update.add_argument("--description")
+    line_update.add_argument("--context")
+    line_update.add_argument("--cid-name")
+    line_update.add_argument("--cid-num")
+
     preview = sub.add_parser("preview", help="create a temporary provisioning preview")
     status = sub.add_parser("status", help="read live SCCP handset state from Asterisk")
     status.add_argument("--asterisk-bin", default=os.environ.get("ASTERISK_BIN", "/usr/sbin/asterisk"))
@@ -784,6 +847,9 @@ def main():
                 if not args.confirm:
                     raise ManagerError("removal requires --confirm")
                 remove_device(db, args.mac)
+        elif args.command == "line":
+            if args.action == "update":
+                update_line(db, args)
         elif args.command == "preview":
             print(json.dumps(preview_inventory(db), ensure_ascii=True))
         elif args.command == "status":

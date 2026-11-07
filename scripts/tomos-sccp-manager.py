@@ -477,23 +477,27 @@ def add_device_button(db, args):
     if db.execute("SELECT 1 FROM devices WHERE mac=?", (mac,)).fetchone() is None:
         raise ManagerError(f"phone not found: {mac}")
     button = _validate_button(args.type, args.label, args.option1, args.option2, args.line_extension)
-    count = db.execute("SELECT COUNT(*) FROM device_buttons WHERE mac=?", (mac,)).fetchone()[0]
+    existing = [dict(row) for row in db.execute(
+        "SELECT * FROM device_buttons WHERE mac=? ORDER BY position", (mac,)).fetchall()]
+    count = len(existing)
     position = args.position if args.position is not None else count + 1
     if position < 1 or position > count + 1 or count >= 32:
         raise ManagerError(f"button position must be between 1 and {min(count + 1, 32)}; maximum 32 buttons")
+    if position == 1 and button["button_type"] != "line":
+        raise ManagerError("the first configured button must be a line button")
+    if button["button_type"] == "line":
+        now = datetime.now(timezone.utc).isoformat()
+        ext = button["line_extension"]
+        db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
+                   (ext, button["button_label"], button["button_label"], "from-internal-xfer", ext, ext, now))
+    existing.insert(position - 1, button)
     with db:
-        db.execute("UPDATE device_buttons SET position=-position WHERE mac=? AND position>=?",
-                   (mac, position))
-        db.execute("UPDATE device_buttons SET position=-position+1 WHERE mac=? AND position<0", (mac,))
-        if button["button_type"] == "line":
-            now = datetime.now(timezone.utc).isoformat()
-            ext = button["line_extension"]
-            db.execute("INSERT OR IGNORE INTO lines VALUES (?,?,?,?,?,?,?)",
-                       (ext, button["button_label"], button["button_label"], "from-internal-xfer", ext, ext, now))
-        _insert_button(db, mac, position, button)
-        if button["button_type"] == "line" and position == 1:
+        db.execute("DELETE FROM device_buttons WHERE mac=?", (mac,))
+        for index, item in enumerate(existing, 1):
+            _insert_button(db, mac, index, item)
+        if existing[0]["button_type"] == "line":
             db.execute("UPDATE devices SET extension=?,updated_at=? WHERE mac=?",
-                       (button["line_extension"], datetime.now(timezone.utc).isoformat(), mac))
+                       (existing[0]["line_extension"], datetime.now(timezone.utc).isoformat(), mac))
     print(f"Added {button['button_type']} button at position {position} on SEP{mac}.")
 
 
@@ -501,17 +505,22 @@ def remove_device_button(db, args):
     mac = args.mac.replace(":", "").replace("-", "").upper()
     if not MAC_RE.fullmatch(mac):
         raise ManagerError("--mac must contain exactly 12 hexadecimal characters")
+    existing = [dict(row) for row in db.execute(
+        "SELECT * FROM device_buttons WHERE mac=? ORDER BY position", (mac,)).fetchall()]
+    if args.position < 1 or args.position > len(existing):
+        raise ManagerError(f"button position {args.position} not found on SEP{mac}")
+    removed = existing.pop(args.position - 1)
+    if removed["button_type"] == "line" and not any(item["button_type"] == "line" for item in existing):
+        raise ManagerError("a phone must retain at least one line button")
+    if existing and existing[0]["button_type"] != "line":
+        raise ManagerError("the first configured button must remain a line button")
     with db:
-        cursor = db.execute("DELETE FROM device_buttons WHERE mac=? AND position=?", (mac, args.position))
-        if cursor.rowcount != 1:
-            raise ManagerError(f"button position {args.position} not found on SEP{mac}")
-        db.execute("UPDATE device_buttons SET position=-position WHERE mac=? AND position>?", (mac, args.position))
-        db.execute("UPDATE device_buttons SET position=-position-1 WHERE mac=? AND position<0", (mac,))
-        primary = db.execute("SELECT line_extension FROM device_buttons WHERE mac=? AND position=1 AND button_type='line'",
-                              (mac,)).fetchone()
-        if primary:
+        db.execute("DELETE FROM device_buttons WHERE mac=?", (mac,))
+        for index, item in enumerate(existing, 1):
+            _insert_button(db, mac, index, item)
+        if existing:
             db.execute("UPDATE devices SET extension=?,updated_at=? WHERE mac=?",
-                       (primary["line_extension"], datetime.now(timezone.utc).isoformat(), mac))
+                       (existing[0]["line_extension"], datetime.now(timezone.utc).isoformat(), mac))
     print(f"Removed button {args.position} from SEP{mac}.")
 
 

@@ -26,7 +26,9 @@ with tempfile.TemporaryDirectory() as directory:
             "--template-dir", templates, "--output", output]
     run(*base)
     tree = ET.parse(output)
-    assert tree.findtext(".//processNodeName") == "192.168.1.10"\n    assert tree.findtext("./sshUserId") == "tom-phone"\n    assert tree.findtext("./sshPassword") == "change-me"
+    assert tree.findtext(".//processNodeName") == "192.168.1.10"
+    assert tree.find("./sshUserId") is None
+    assert tree.find("./sshPassword") is None
     assert tree.findtext(".//ethernetPhonePort") == "2000"
     assert tree.findtext(".//ipAddr1") == "192.168.1.10"
     assert tree.find(".//ntp") is None
@@ -36,6 +38,22 @@ with tempfile.TemporaryDirectory() as directory:
     run(*base, "--force", "--ntp-server", "192.168.1.20")
     assert output.with_name(output.name + ".tomos-backup").read_text(encoding="utf-8") == original
     assert ET.parse(output).findtext(".//ntp/name") == "192.168.1.20"
+
+    password_file = root / "phone-password"
+    password_file.write_text("not-a-default-password\n", encoding="utf-8")
+    password_file.chmod(0o600)
+    custom_output = root / "custom.xml"
+    run("--model", "69xx", "--mac", "001122aabbcc", "--pbx-address", "192.168.1.10",
+        "--template-dir", templates, "--output", custom_output, "--ssh-user", "phone-admin",
+        "--ssh-password-file", password_file)
+    custom = ET.parse(custom_output)
+    assert custom.findtext("./sshUserId") == "phone-admin"
+    assert custom.findtext("./sshPassword") == "not-a-default-password"
+    password_file.chmod(0o644)
+    run("--model", "69xx", "--mac", "001122aabbcc", "--pbx-address", "192.168.1.10",
+        "--template-dir", templates, "--output", root / "bad-perms.xml", "--ssh-user", "phone-admin",
+        "--ssh-password-file", password_file, expected=2)
+
     run("--model", "69xx", "--mac", "bad", "--pbx-address", "192.168.1.10",
         "--template-dir", templates, "--output", root / "bad.xml", expected=2)
     run("--model", "69xx", "--mac", "001122aabbcc", "--pbx-address", "not-an-ip",

@@ -32,3 +32,8 @@ grep -q 'preview_inventory' "$ROOT/scripts/tomos-sccp-manager.py"
 grep -q 'live_device_status' "$ROOT/scripts/tomos-sccp-manager.py"
 grep -q 'button_extensions' "$ROOT/freepbx-module/tomos_sccp/page.tomos_sccp.php"
 grep -q 'sep-deploy' "$ROOT/freepbx-module/tomos_sccp/page.tomos_sccp.php"
+
+grep -q 'button-add' "$ROOT/freepbx-module/tomos_sccp/page.tomos_sccp.php"
+grep -q 'button-remove' "$ROOT/freepbx-module/tomos_sccp/page.tomos_sccp.php"
+grep -q 'speeddial' "$ROOT/scripts/tomos-sccp-manager.py"
+grep -q 'parkinglot' "$ROOT/scripts/tomos-sccp-manager.py"

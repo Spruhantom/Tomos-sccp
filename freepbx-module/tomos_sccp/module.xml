@@ -1,0 +1,20 @@
+<module>
+  <rawname>tomos_sccp</rawname>
+  <name>TomOS SCCP Manager</name>
+  <version>1.0.0</version>
+  <type>setup</type>
+  <category>Connectivity</category>
+  <publisher>TomOS</publisher>
+  <description>Manage Cisco SCCP handset inventory using the shared TomOS provisioning database.</description>
+  <menuitems>
+    <tomos_sccp sort="20">TomOS SCCP</tomos_sccp>
+  </menuitems>
+  <depends>
+    <version>17.0</version>
+    <phpversion>8.2</phpversion>
+  </depends>
+  <supported>
+    <version>17.0</version>
+  </supported>
+  <license>GPLv3+</license>
+</module>

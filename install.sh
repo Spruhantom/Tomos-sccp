@@ -71,7 +71,12 @@ install -d -m 0755 /usr/share/tomos-sccp/examples /usr/share/tomos-sccp/tftp-tem
 for example in sccp.conf.minimal sccp.conf.freepbx sccp_extensions.conf.freepbx sccp_hardware.conf.freepbx; do
   [[ ! -f "conf/$example" ]] || install -m 0644 "conf/$example" "/usr/share/tomos-sccp/examples/$example"
 done
-find conf/tftp -maxdepth 1 -type f \\( -name '*_template' -o -name 'XMLDefault*.xml' -o -name 'WLANDefault.xml' -o -name 'properties.xml' \\) -exec install -m 0644 -t /usr/share/tomos-sccp/tftp-templates {} +
+TEMPLATE_COUNT=0
+while IFS= read -r -d '' template; do
+  install -m 0644 "$template" "/usr/share/tomos-sccp/tftp-templates/$(basename "$template")"
+  TEMPLATE_COUNT=$((TEMPLATE_COUNT + 1))
+done < <(find conf/tftp -maxdepth 1 -type f \\( -name '*_template' -o -name 'XMLDefault*.xml' -o -name 'WLANDefault.xml' -o -name 'properties.xml' \\) -print0)
+(( TEMPLATE_COUNT > 0 )) || die "Upstream Cisco TFTP templates were not found."
 
 for dependency in app_voicemail.so bridge_simple.so bridge_native_rtp.so bridge_softmix.so bridge_holding.so res_stasis.so res_stasis_device_state.so; do
   status="$(asterisk -rx "module show like $dependency" 2>/dev/null || true)"

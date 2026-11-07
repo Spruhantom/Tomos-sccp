@@ -196,6 +196,17 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py sep-deploy \
 
 Deployment rechecks the approval hash, each staged file's SHA-256 and XML validity, and refuses symlinks, non-regular targets and existing TFTP files by default. Add `--force` only when replacing files is intentional; previous files are copied to `.tomos-backup` and a partial deployment is rolled back on failure. Staging and TFTP directories must be separate. This copies files only: it does not reload TFTP, change DHCP/Asterisk, or reboot phones. Test handset retrieval and registration manually before production use.
 
+## Physical Cisco handset validation
+
+Use the [handset validation runbook](docs/HANDSET-VALIDATION.md) to record TFTP retrieval, registration, incoming/outgoing calls, two-way audio and model/firmware results. The read-only PBX snapshot helper prints Asterisk's SCCP device and line status plus recent service logs:
+
+```bash
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-phone-check.sh \
+  --mac 001122AABBCC --extension 1000
+```
+
+It does not change the PBX or place calls. Compare the actual device and line state in its output; a configured entry alone is not proof of registration. Physical handset and call testing remain manual acceptance tests.
+
 ## Diagnostics
 
 ```bash

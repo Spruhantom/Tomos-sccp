@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert preview["device_count"] == 1 and preview["button_count"] == 4
     assert ("button = line, 1000\nbutton = line, 1001\n"
             'button = speeddial, "Reception", 2000, 2000@hints\n'
-            'button = feature, "Do Not Disturb", dnd, busy') in preview["files"]["sccp_hardware.conf"]
+            'button = feature, "Do Not Disturb", DND, busy') in preview["files"]["sccp_hardware.conf"]
     assert "[1001]" in preview["files"]["sccp_extensions.conf"]
 
     shared_inventory = json.loads(run(database, "device", "list", "--json").stdout)
@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert "devicetype = 7960" in hardware
     assert ("button = line, 1000\nbutton = line, 1001\n"
             'button = speeddial, "Reception", 2000, 2000@hints\n'
-            'button = feature, "Do Not Disturb", dnd, busy') in hardware
+            'button = feature, "Do Not Disturb", DND, busy') in hardware
     run(database, "device", "button-remove", "--mac", "001122334455", "--position", "4")
     after_remove = json.loads(run(database, "device", "show", "--mac", "001122334455", "--json").stdout)
     assert [(item["position"], item["button_type"]) for item in after_remove["buttons"]] == [

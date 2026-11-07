@@ -65,6 +65,17 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-install-tftp-templates.sh --tftp-r
 
 Change `/srv/tftp` to the TFTP root configured on your PBX. Existing template files are preserved. This command does not install or reconfigure a TFTP daemon, DHCP option 150, phone firmware or firewall rules.
 
+## Cisco phone DHCP provisioning
+
+Cisco phones need a reachable TFTP server address. TomOS provides example DHCP snippets for existing DHCP services; it does not install, enable or take over a DHCP server.
+
+- [dnsmasq example](examples/dhcp/dnsmasq.conf): sends Cisco DHCP Option 150 with the TomOS TFTP server IPv4 address.
+- [ISC DHCP example](examples/dhcp/isc-dhcpd.conf): defines Option 150 as an array of IPv4 addresses and assigns it in the voice subnet. ISC DHCP is end-of-life; use this only when maintaining an existing deployment.
+
+Edit the interface, voice subnet, lease pool, router, DNS and TFTP addresses before use. Keep the scope on the phone/voice VLAN and ensure there is only one authoritative DHCP service for that subnet. Option 150 can carry multiple TFTP server addresses; Option 66 is an alternative for a single server. The TFTP server must be reachable by the phones and UDP/TFTP traffic must be allowed by the network.
+
+These files are examples, not drop-in replacements for a site's DHCP configuration. Back up the active DHCP configuration, merge the relevant settings into the existing server, validate it with that server's configuration checker, and reload it during a maintenance window. The installer does not modify DHCP configuration.
+
 ## Device and extension provisioning (staging only)
 
 Create a JSON inventory based on [the example](examples/devices.example.json), then validate and render it:
@@ -164,6 +175,7 @@ bash -n install-manager.sh
 bash -n scripts/tomos-sccp-doctor.sh
 bash -n scripts/tomos-sccp-install-tftp-templates.sh
 bash tests/test-installer-static.sh
+bash tests/test-dhcp-examples.sh
 bash tests/test-tftp-templates.sh
 python3 tests/test-modules-conf.py
 python3 tests/test-sccp-provision.py

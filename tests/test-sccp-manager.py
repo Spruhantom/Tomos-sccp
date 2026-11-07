@@ -66,7 +66,7 @@ with tempfile.TemporaryDirectory() as temporary:
         "--template-family", "7940_7960", "--extension", "1001",
         "--description", "Duplicate IP", "--dhcp-address", "192.168.10.50", expected=2)
     backup_target = root / "exports" / "overwrite.conf"
-    backup_target.write_text("existing config\\n", encoding="utf-8")
+    backup_target.write_text("existing config\n", encoding="utf-8")
     run(database, "dhcp-export", "--format", "dnsmasq", "--output", backup_target,
         "--force")
     assert pathlib.Path(str(backup_target) + ".tomos-backup").read_text(encoding="utf-8") == "existing config\n"

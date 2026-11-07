@@ -14,6 +14,7 @@ TomOS SCCP is an installer and operations helper for the FreePBX 17-tested [chan
 - Checks documented Asterisk module dependencies.
 - Records the upstream source commit used for the build.
 - Installs a read-only diagnostic utility.
+- Provides a full-stack installer for the driver and the upstream FreePBX SCCP Manager GUI companion.
 - Supports selecting an upstream Git ref with TOMOS_SCCP_REF (default: stable).
 
 ## One-line installation
@@ -24,11 +25,13 @@ Review the installer before running it. On a supported FreePBX 17 host:
 curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install-stack.sh | sudo bash
 ```
 
-To choose an upstream branch:
+To install only the channel driver (without the FreePBX GUI companion):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install.sh | sudo env TOMOS_SCCP_REF=stable bash
+curl -fsSL https://raw.githubusercontent.com/Spruhantom/Tomos-sccp/main/install.sh | sudo bash
 ```
+
+The driver-only installer accepts `TOMOS_SCCP_REF` to select a different upstream ref.
 
 The installer requires root, installs build dependencies through APT, and downloads upstream source from GitHub. It does not install an unverified prebuilt binary.
 
@@ -66,15 +69,17 @@ The installer manages only its marked block in /etc/asterisk/modules.conf. FreeP
 
 ## Phone provisioning
 
-This release installs the channel driver only. It does not create extensions, phone credentials, device identities, dialplan entries or TFTP configuration, and it does not overwrite /etc/asterisk/chan_sccp.conf. Cisco device provisioning and FreePBX GUI integration remain future work.
+The full-stack installer also installs the upstream GPL-licensed [SCCP Manager](https://github.com/nortien/sccp_manager) companion into FreePBX. It provides GUI management for devices, lines, buttons, phone models and TFTP provisioning. TomOS does not fork or relicense that module. The driver-only installer does not install the GUI companion.
 
-Consult the [upstream documentation](https://github.com/nortien/sccp_manager/wiki). Never use example credentials on a live PBX.
+The installer does not invent phone credentials or automatically expose devices to the network. Review the manager's security settings, device allow-lists, TFTP root and DHCP option 150 before connecting phones. Read the [upstream installation and provisioning guide](https://github.com/nortien/sccp_manager/wiki).
 
 ## Tests
 
 ```bash
 bash -n install.sh
 bash -n scripts/tomos-sccp-doctor.sh
+bash -n install-manager.sh
+bash -n install-stack.sh
 bash tests/test-installer-static.sh
 python3 tests/test-modules-conf.py
 ```

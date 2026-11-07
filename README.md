@@ -181,6 +181,21 @@ sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py sep-export \
 
 This is a reviewed staging export, not a live deployment. The manager first renders and parses every phone's XML in a temporary directory; it writes nothing to the destination if a template is missing or any phone fails validation. Existing files are refused unless `--force` is supplied, which preserves `.tomos-backup` copies and rolls back a partial export if a write fails. Optional `--template-dir`, `--port` and `--ntp-server` settings are available. Review the XML and confirm handset model and firmware compatibility before manually copying files to the configured TFTP root. DHCP, live TFTP files, Asterisk and phones are not changed.
 
+
+### Deploy a reviewed SEP export to TFTP
+
+After `sep-export` finishes, inspect every XML file and the manifest. It prints the manifest SHA-256 approval value. Only after reviewing those exact files, deploy them into an existing TFTP root:
+
+```bash
+sha256sum /var/tmp/tomos-sccp-tftp-review/tomos-sccp-sep-manifest.json
+sudo /usr/local/libexec/tomos-sccp/tomos-sccp-manager.py sep-deploy \
+  --staging-dir /var/tmp/tomos-sccp-tftp-review \
+  --tftp-root /srv/tftp \
+  --approve-sha256 REPLACE_WITH_REVIEWED_SHA256
+```
+
+Deployment rechecks the approval hash, each staged file's SHA-256 and XML validity, and refuses symlinks, non-regular targets and existing TFTP files by default. Add `--force` only when replacing files is intentional; previous files are copied to `.tomos-backup` and a partial deployment is rolled back on failure. Staging and TFTP directories must be separate. This copies files only: it does not reload TFTP, change DHCP/Asterisk, or reboot phones. Test handset retrieval and registration manually before production use.
+
 ## Diagnostics
 
 ```bash

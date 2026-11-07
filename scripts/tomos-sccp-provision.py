@@ -161,6 +161,14 @@ def main():
             return 0
         outputs = render_files(devices, lines)
         destination = pathlib.Path(args.output_dir)
+        # Preflight the complete output set so a collision cannot leave a partial render.
+        for name in outputs:
+            target = destination / name
+            backup = target.with_name(target.name + ".tomos-backup")
+            if target.exists() and not args.force:
+                raise ProvisioningError(f"refusing to overwrite {target}; use --force after backing it up")
+            if target.exists() and args.force and backup.exists():
+                raise ProvisioningError(f"backup already exists: {backup}; move it before using --force")
         for name, content in outputs.items():
             atomic_write(destination / name, content, args.force)
         print(f"Rendered {len(devices)} device(s) and {len(lines)} unique line(s) into {destination}")

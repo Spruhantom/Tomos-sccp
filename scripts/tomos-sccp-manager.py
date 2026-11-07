@@ -6,6 +6,7 @@ implemented independently for TomOS and the upstream chan-sccp driver.
 """
 import argparse
 import json
+import ipaddress
 import os
 import pathlib
 import re
@@ -96,6 +97,13 @@ def connect_database(path):
             ("cisco", family, display,
              f"SEP0000000000.cnf.xml_{family}_template")
         )
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(devices)")}
+    if "dhcp_address" not in columns:
+        connection.execute("ALTER TABLE devices ADD COLUMN dhcp_address TEXT")
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS devices_dhcp_address_unique "
+        "ON devices(dhcp_address) WHERE dhcp_address IS NOT NULL"
+    )
     connection.commit()
     try:
         os.chmod(path, 0o600)
@@ -104,6 +112,61 @@ def connect_database(path):
         raise
     return connection
 
+
+def validate_dhcp_address(value):
+    if value is None or value == "":
+        return None
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as exc:
+        raise ManagerError("--dhcp-address must be a valid IPv4 address") from exc
+    if address.version != 4 or address.is_unspecified or address.is_multicast:
+        raise ManagerError("--dhcp-address must be a usable IPv4 address")
+    return str(address)
+
+
+def export_dhcp_reservations(db, output, fmt, force):
+    rows = db.execute(
+        "SELECT mac, description, dhcp_address FROM devices "
+        "WHERE dhcp_address IS NOT NULL ORDER BY dhcp_address"
+    ).fetchall()
+    if not rows:
+        raise ManagerError("no devices have a DHCP address; set --dhcp-address first")
+    lines = ["# TomOS SCCP DHCP reservations (generated; review before importing).",
+             "# Export only: this file is not installed or activated automatically."]
+    if fmt == "dnsmasq":
+        lines.append("# Add to the dnsmasq configuration for the phone/voice network.")
+        for row in rows:
+            mac = ":".join(row["mac"][i:i + 2].lower() for i in range(0, 12, 2))
+            lines.append("dhcp-host=" + mac + "," + row["dhcp_address"])
+    else:
+        lines.append("# Add these host declarations inside the matching subnet scope.")
+        for row in rows:
+            mac = ":".join(row["mac"][i:i + 2].lower() for i in range(0, 12, 2))
+            name = "tomos-phone-" + row["mac"].lower()
+            lines.extend(["host " + name + " {",
+                          "  hardware ethernet " + mac + ";",
+                          "  fixed-address " + row["dhcp_address"] + ";", "}"])
+    destination = pathlib.Path(output)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        if not force:
+            raise ManagerError("output already exists: " + str(destination) + "; use --force to back it up")
+        backup = pathlib.Path(str(destination) + ".tomos-backup")
+        if backup.exists():
+            raise ManagerError("backup already exists: " + str(backup))
+        import shutil
+        shutil.copy2(destination, backup)
+    fd, temporary = tempfile.mkstemp(prefix=".tomos-dhcp-", dir=str(destination.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write("\n".join(lines) + "\n")
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, destination)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    print("Exported " + str(len(rows)) + " DHCP reservation(s) to " + str(destination) + " (" + fmt + "); active DHCP was not changed.")
 
 def add_device(db, args):
     vendor = args.vendor.lower()
@@ -128,16 +191,18 @@ def add_device(db, args):
     label = clean_text(args.label or extension, "--label")
     cid_name = clean_text(args.cid_name or label, "--cid-name")
     cid_num = clean_text(args.cid_num or extension, "--cid-num", 40)
+    dhcp_address = validate_dhcp_address(args.dhcp_address)
     now = datetime.now(timezone.utc).isoformat()
     try:
         with db:
             db.execute(
                 """INSERT INTO devices
                    (mac, vendor_slug, model_number, template_family, description,
-                    extension, label, cid_name, cid_num, context, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    extension, label, cid_name, cid_num, context, created_at, updated_at,
+                    dhcp_address)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (mac, vendor, model, family, description, extension, label,
-                 cid_name, cid_num, context, now, now)
+                 cid_name, cid_num, context, now, now, dhcp_address)
             )
     except sqlite3.IntegrityError as exc:
         raise ManagerError(f"could not add device (duplicate MAC or unknown vendor/template): {exc}") from exc
@@ -162,6 +227,8 @@ def update_device(db, args):
         "cid_name": args.cid_name if args.cid_name is not None else row["cid_name"],
         "cid_num": args.cid_num if args.cid_num is not None else row["cid_num"],
         "context": args.context or row["context"],
+        "dhcp_address": (validate_dhcp_address(args.dhcp_address)
+                         if args.dhcp_address is not None else row["dhcp_address"]),
     }
     if values["vendor_slug"] not in VENDORS:
         raise ManagerError(f"unsupported vendor: {values['vendor_slug']}")
@@ -183,7 +250,8 @@ def update_device(db, args):
                 """UPDATE devices SET vendor_slug = :vendor_slug, model_number = :model_number,
                    template_family = :template_family, extension = :extension,
                    description = :description, label = :label, cid_name = :cid_name,
-                   cid_num = :cid_num, context = :context, updated_at = :updated_at
+                   cid_num = :cid_num, context = :context, updated_at = :updated_at,
+                   dhcp_address = :dhcp_address
                    WHERE mac = :mac""",
                 {**values, "mac": mac}
             )
@@ -212,7 +280,8 @@ def show_device(db, mac):
     if row is None:
         raise ManagerError(f"phone not found: {mac}")
     for key in ("mac", "vendor_slug", "model_number", "template_family", "description",
-                "extension", "label", "cid_name", "cid_num", "context", "created_at", "updated_at"):
+                "extension", "label", "cid_name", "cid_num", "context", "dhcp_address",
+                "created_at", "updated_at"):
         print(f"{key}: {row[key]}")
 
 
@@ -293,6 +362,7 @@ def main():
     add.add_argument("--cid-name")
     add.add_argument("--cid-num")
     add.add_argument("--context", default="from-internal-xfer")
+    add.add_argument("--dhcp-address", help="optional static IPv4 address for DHCP reservation export")
     update = device_sub.add_parser("update")
     update.add_argument("--mac", required=True)
     update.add_argument("--vendor", choices=tuple(VENDORS))
@@ -304,6 +374,7 @@ def main():
     update.add_argument("--cid-name")
     update.add_argument("--cid-num")
     update.add_argument("--context")
+    update.add_argument("--dhcp-address", help="set static IPv4 address; pass empty value to clear")
     listing = device_sub.add_parser("list")
     show = device_sub.add_parser("show")
     show.add_argument("--mac", required=True)
@@ -315,6 +386,11 @@ def main():
     render = sub.add_parser("render", help="render managed inventory to staging include files")
     render.add_argument("--output-dir", required=True)
     render.add_argument("--force", action="store_true")
+
+    dhcp = sub.add_parser("dhcp-export", help="export static DHCP reservations (does not change DHCP service)")
+    dhcp.add_argument("--format", choices=("dnsmasq", "isc-dhcpd"), required=True)
+    dhcp.add_argument("--output", required=True)
+    dhcp.add_argument("--force", action="store_true")
 
     args = parser.parse_args()
     db = None
@@ -343,6 +419,8 @@ def main():
                 remove_device(db, args.mac)
         elif args.command == "render":
             render_inventory(db, args.output_dir, args.force)
+        elif args.command == "dhcp-export":
+            export_dhcp_reservations(db, args.output, args.format, args.force)
         return 0
     except (ManagerError, OSError, sqlite3.Error) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

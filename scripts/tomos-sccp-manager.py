@@ -5,6 +5,8 @@ Inspired by Endpoint Manager's inventory/model/template separation, but
 implemented independently for TomOS and the upstream chan-sccp driver.
 """
 import argparse
+import grp
+import pwd
 import json
 import ipaddress
 import os
@@ -106,7 +108,22 @@ def connect_database(path):
     )
     connection.commit()
     try:
-        os.chmod(path, 0o600)
+        # On FreePBX, the web application runs as the asterisk account. Keep
+        # the same SQLite database writable by that account and root CLI users.
+        # Other environments retain owner-only permissions.
+        if os.geteuid() == 0:
+            try:
+                account = pwd.getpwnam("asterisk")
+                group = grp.getgrnam("asterisk")
+            except KeyError:
+                os.chmod(path, 0o600)
+            else:
+                os.chown(path.parent, account.pw_uid, group.gr_gid)
+                os.chmod(path.parent, 0o750)
+                os.chown(path, account.pw_uid, group.gr_gid)
+                os.chmod(path, 0o660)
+        elif os.access(path.parent, os.W_OK):
+            os.chmod(path, 0o660)
     except OSError:
         connection.close()
         raise
@@ -260,11 +277,15 @@ def update_device(db, args):
     print(f"Updated phone SEP{mac}.")
 
 
-def list_devices(db):
+def list_devices(db, as_json=False):
     rows = db.execute(
-        """SELECT mac, vendor_slug, model_number, template_family, extension, description
+        """SELECT mac, vendor_slug, model_number, template_family, extension, description,
+                  label, cid_name, cid_num, context, dhcp_address, created_at, updated_at
            FROM devices ORDER BY mac"""
     ).fetchall()
+    if as_json:
+        print(json.dumps([dict(row) for row in rows], ensure_ascii=True))
+        return
     if not rows:
         print("No phones registered yet.")
         return
@@ -274,11 +295,14 @@ def list_devices(db):
               f"{row['template_family']:16} {row['extension']:12} {row['description']}")
 
 
-def show_device(db, mac):
+def show_device(db, mac, as_json=False):
     mac = mac.replace(":", "").replace("-", "").upper()
     row = db.execute("SELECT * FROM devices WHERE mac = ?", (mac,)).fetchone()
     if row is None:
         raise ManagerError(f"phone not found: {mac}")
+    if as_json:
+        print(json.dumps(dict(row), ensure_ascii=True))
+        return
     for key in ("mac", "vendor_slug", "model_number", "template_family", "description",
                 "extension", "label", "cid_name", "cid_num", "context", "dhcp_address",
                 "created_at", "updated_at"):
@@ -575,8 +599,10 @@ def main():
     update.add_argument("--context")
     update.add_argument("--dhcp-address", help="set static IPv4 address; pass empty value to clear")
     listing = device_sub.add_parser("list")
+    listing.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     show = device_sub.add_parser("show")
     show.add_argument("--mac", required=True)
+    show.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     remove = device_sub.add_parser("remove")
     remove.add_argument("--mac", required=True)
     remove.add_argument("--confirm", action="store_true",
@@ -625,9 +651,9 @@ def main():
             elif args.action == "update":
                 update_device(db, args)
             elif args.action == "list":
-                list_devices(db)
+                list_devices(db, args.json)
             elif args.action == "show":
-                show_device(db, args.mac)
+                show_device(db, args.mac, args.json)
             elif args.action == "remove":
                 if not args.confirm:
                     raise ManagerError("removal requires --confirm")

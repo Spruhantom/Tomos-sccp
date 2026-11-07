@@ -1,0 +1,16 @@
+{
+  "server": {
+    "context": "from-internal-xfer"
+  },
+  "devices": [
+    {
+      "mac": "001122334455",
+      "model": "7960",
+      "description": "Front desk",
+      "extension": "1000",
+      "label": "Front desk",
+      "cid_name": "Front Desk",
+      "cid_num": "1000"
+    }
+  ]
+}

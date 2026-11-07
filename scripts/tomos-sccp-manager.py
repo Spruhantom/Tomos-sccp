@@ -144,6 +144,54 @@ def add_device(db, args):
     print(f"Added {vendor} {model} phone SEP{mac} on extension {extension}.")
 
 
+
+def update_device(db, args):
+    mac = args.mac.replace(":", "").replace("-", "").upper()
+    if not MAC_RE.fullmatch(mac):
+        raise ManagerError("--mac must contain exactly 12 hexadecimal characters")
+    row = db.execute("SELECT * FROM devices WHERE mac = ?", (mac,)).fetchone()
+    if row is None:
+        raise ManagerError(f"phone not found: {mac}")
+    values = {
+        "vendor_slug": args.vendor or row["vendor_slug"],
+        "model_number": args.model or row["model_number"],
+        "template_family": args.template_family or row["template_family"],
+        "extension": args.extension or row["extension"],
+        "description": args.description if args.description is not None else row["description"],
+        "label": args.label if args.label is not None else row["label"],
+        "cid_name": args.cid_name if args.cid_name is not None else row["cid_name"],
+        "cid_num": args.cid_num if args.cid_num is not None else row["cid_num"],
+        "context": args.context or row["context"],
+    }
+    if values["vendor_slug"] not in VENDORS:
+        raise ManagerError(f"unsupported vendor: {values['vendor_slug']}")
+    if not MODEL_RE.fullmatch(values["model_number"]):
+        raise ManagerError("--model must be a 3- or 4-digit SCCP device type")
+    if values["template_family"] not in TEMPLATE_FAMILIES:
+        raise ManagerError(f"unsupported Cisco template family: {values['template_family']}")
+    if not EXT_RE.fullmatch(values["extension"]):
+        raise ManagerError("--extension must contain 1–20 digits")
+    if not CONTEXT_RE.fullmatch(values["context"]):
+        raise ManagerError("--context may contain only letters, digits, dot, underscore and hyphen")
+    for key in ("description", "label", "cid_name"):
+        values[key] = clean_text(values[key], key.replace("_", " "))
+    values["cid_num"] = clean_text(values["cid_num"], "cid_num", 40)
+    values["updated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        with db:
+            db.execute(
+                """UPDATE devices SET vendor_slug = :vendor_slug, model_number = :model_number,
+                   template_family = :template_family, extension = :extension,
+                   description = :description, label = :label, cid_name = :cid_name,
+                   cid_num = :cid_num, context = :context, updated_at = :updated_at
+                   WHERE mac = :mac""",
+                {**values, "mac": mac}
+            )
+    except sqlite3.IntegrityError as exc:
+        raise ManagerError(f"could not update phone: {exc}") from exc
+    print(f"Updated phone SEP{mac}.")
+
+
 def list_devices(db):
     rows = db.execute(
         """SELECT mac, vendor_slug, model_number, template_family, extension, description
@@ -245,6 +293,17 @@ def main():
     add.add_argument("--cid-name")
     add.add_argument("--cid-num")
     add.add_argument("--context", default="from-internal-xfer")
+    update = device_sub.add_parser("update")
+    update.add_argument("--mac", required=True)
+    update.add_argument("--vendor", choices=tuple(VENDORS))
+    update.add_argument("--model")
+    update.add_argument("--template-family", choices=tuple(TEMPLATE_FAMILIES))
+    update.add_argument("--extension")
+    update.add_argument("--description")
+    update.add_argument("--label")
+    update.add_argument("--cid-name")
+    update.add_argument("--cid-num")
+    update.add_argument("--context")
     listing = device_sub.add_parser("list")
     show = device_sub.add_parser("show")
     show.add_argument("--mac", required=True)
@@ -272,7 +331,7 @@ def main():
         elif args.command == "device":
             if args.action == "add":
                 add_device(db, args)
-            elif args.action == "list":
+            elif args.action == "update":\n                update_device(db, args)\n            elif args.action == "list":
                 list_devices(db)
             elif args.action == "show":
                 show_device(db, args.mac)
